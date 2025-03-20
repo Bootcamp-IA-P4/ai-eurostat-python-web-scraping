@@ -6,6 +6,7 @@ dependencies = [
     "beautifulsoup4>=4.13.3",
     "django>=5.1.7",
     "geckodriver>=0.0.1",
+    "pandas>=2.2.3",
     "selenium>=4.29.0",
     "webdriver-manager>=4.0.2",
 ]
