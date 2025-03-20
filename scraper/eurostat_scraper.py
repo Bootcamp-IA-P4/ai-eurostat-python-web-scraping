@@ -15,6 +15,7 @@ from scraper.models import GDPCategory, GDPData, GDPTableData
 import os
 import sys
 import re
+from datetime import datetime
 
 # Configurar logging
 logging.basicConfig(
@@ -37,34 +38,37 @@ class EurostatScraper:
             chrome_options = Options()
             
             # Configuración básica
-            chrome_options.add_argument("--start-maximized") # Maximize window
-            chrome_options.add_argument("--no-sandbox") # Disable sandbox
-            chrome_options.add_argument("--disable-dev-shm-usage") # Disable shared memory usage
-            chrome_options.add_argument("--disable-gpu") # Disable GPU            
-            chrome_options.add_argument("--disable-extensions") # Disable extensions
-            chrome_options.add_argument("--remote-debugging-port=9222")  # Add debugging port
-            chrome_options.add_argument("--disable-software-rasterizer")  # Disable software rasterizer
+            chrome_options.add_argument("--start-maximized")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--disable-extensions")
+            chrome_options.add_argument("--disable-software-rasterizer")
+            chrome_options.add_argument("--window-size=1920,1080")
+            chrome_options.add_argument("--disable-notifications")
+            chrome_options.add_argument("--disable-infobars")
+            chrome_options.add_argument('--no-proxy-server')
+            chrome_options.add_argument("--proxy-server='direct://'")
+            chrome_options.add_argument("--proxy-bypass-list=*")
+            chrome_options.add_argument('--ignore-certificate-errors')
+            chrome_options.add_argument('--ignore-ssl-errors')
             
             if headless:
                 chrome_options.add_argument("--headless=new")
-                chrome_options.add_argument("--disable-gpu")  # Required for headless on some systems
             
             logger.info("Chrome options configured")
             
-            # Configurar el servicio de Chrome con log level
-            service = Service(
-                ChromeDriverManager().install(),
-                log_output=os.path.join(os.getcwd(), 'chromedriver.log')  # Add log file
-            )
+            # Configurar el servicio de Chrome
+            service = Service(ChromeDriverManager().install())
             logger.info("Chrome service configured")
             
-            # Crear el driver con timeout más largo
+            # Crear el driver
             self.driver = webdriver.Chrome(
                 service=service,
                 options=chrome_options
             )
-            self.driver.set_page_load_timeout(60)  # Increase timeout
-            self.wait = WebDriverWait(self.driver, 20)  # Increase wait time
+            self.driver.set_page_load_timeout(60)  # Aumentar timeout
+            self.wait = WebDriverWait(self.driver, 20)  # Aumentar wait time
             logger.info("Chrome driver created successfully")
             
         except Exception as e:
@@ -91,40 +95,69 @@ class EurostatScraper:
     def extract_table_data(self):
         try:
             # Wait for body to be present
-            WebDriverWait(self.driver, 30).until(
+            WebDriverWait(self.driver, 20).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
             self.logger.info("Body element found")
 
-            # Wait for loading mask to disappear
-            try:
-                WebDriverWait(self.driver, 30).until(
-                    EC.invisibility_of_element_located((By.CSS_SELECTOR, '.loading-mask'))
-                )
-                self.logger.info("Loading mask disappeared")
-            except TimeoutException:
-                self.logger.warning("Loading mask timeout - proceeding anyway")
+            # Wait for the page to be fully loaded
+            time.sleep(20)
+            self.logger.info("Waited for page load")
 
-            # Wait for table to be present and visible
-            table = WebDriverWait(self.driver, 45).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, '.ag-root-wrapper'))
-            )
-            self.logger.info("Found table")
+            # Try to find the table with different selectors
+            table = None
+            selectors = [
+                '.ag-root-wrapper',
+                '.ag-theme-alpine',
+                'div[class*="ag-root"]',
+                'div[class*="ag-theme"]',
+                '.ag-center-cols-container',
+                '.ag-body-viewport'
+            ]
 
-            # Wait for data container with longer timeout
-            data_container = WebDriverWait(self.driver, 45).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, '.ag-center-cols-container'))
-            )
-            self.logger.info("Found data container")
+            for selector in selectors:
+                try:
+                    table = WebDriverWait(self.driver, 15).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
+                    self.logger.info(f"Found table with selector: {selector}")
+                    break
+                except Exception as e:
+                    self.logger.warning(f"Could not find table with selector {selector}: {str(e)}")
+                    continue
 
-            # Wait for data to be loaded
-            time.sleep(10)  # Add extra wait time for data to load
+            if not table:
+                # Try to get page source for debugging
+                page_source = self.driver.page_source
+                self.logger.error(f"Page source length: {len(page_source)}")
+                raise Exception("Could not find the table element")
 
-            # Initialize years list with all years we want to capture
+            # Wait for data container
+            data_container = None
+            container_selectors = [
+                '.ag-center-cols-container',
+                '.ag-body-viewport',
+                '.ag-body-container'
+            ]
+
+            for selector in container_selectors:
+                try:
+                    data_container = WebDriverWait(self.driver, 15).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
+                    self.logger.info(f"Found data container with selector: {selector}")
+                    break
+                except:
+                    continue
+
+            if not data_container:
+                raise Exception("Could not find the data container")
+
+            # Initialize years list
             years = [str(year) for year in range(2015, 2025)]
             self.logger.info(f"Using years: {years}")
 
-            # Define a list of EU countries and territories in order
+            # Define EU countries
             eu_countries = [
                 'European Union', 'Euro area', 'Belgium', 'Bulgaria', 'Czechia', 'Denmark',
                 'Germany', 'Estonia', 'Ireland', 'Greece', 'Spain', 'France', 'Croatia',
@@ -135,131 +168,142 @@ class EurostatScraper:
                 'Türkiye', 'Bosnia and Herzegovina', 'Kosovo', 'Moldova', 'Ukraine'
             ]
 
-            # Try to scroll horizontally to see all columns
-            try:
-                scroll_container = self.driver.find_element(By.CSS_SELECTOR, '.ag-body-horizontal-scroll-viewport')
-                # Scroll to the right
-                self.driver.execute_script("arguments[0].scrollLeft = arguments[0].scrollWidth", scroll_container)
-                time.sleep(2)
-                # Scroll back to the left
-                self.driver.execute_script("arguments[0].scrollLeft = 0", scroll_container)
-                time.sleep(2)
-            except Exception as e:
-                self.logger.warning(f"Could not perform horizontal scroll: {str(e)}")
-
-            # Get all rows and wait for them to be visible
-            rows = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, '.ag-row'))
-            )
-            self.logger.info(f"Found {len(rows)} rows")
-
-            # Try to find the GEO column by looking for a cell containing a known country
-            geo_column_index = None
-            for row in rows[:10]:  # Check only first 10 rows for efficiency
+            # Get all rows with multiple attempts
+            rows = None
+            row_selectors = ['.ag-row', '[role="row"]', '.ag-row-position-absolute']
+            
+            for selector in row_selectors:
                 try:
-                    cells = row.find_elements(By.CSS_SELECTOR, '.ag-cell')
-                    self.logger.info(f"Row has {len(cells)} cells")
-                    for i, cell in enumerate(cells):
-                        cell_text = cell.text.strip()
-                        self.logger.info(f"Cell {i} text: {cell_text}")
-                        for country in eu_countries:
-                            if cell_text.lower() == country.lower():
-                                geo_column_index = i
-                                self.logger.info(f"Found GEO column at index {i} with country {country}")
-                                break
-                        if geo_column_index is not None:
-                            break
-                    if geo_column_index is not None:
+                    rows = WebDriverWait(self.driver, 15).until(
+                        EC.presence_of_all_elements_located((By.CSS_SELECTOR, selector))
+                    )
+                    if rows:
+                        self.logger.info(f"Found {len(rows)} rows with selector: {selector}")
                         break
-                except Exception as e:
-                    self.logger.warning(f"Error processing row while searching for GEO column: {str(e)}")
+                except:
                     continue
 
-            if geo_column_index is None:
-                # Try alternative approach: look for column header containing "GEO"
-                header_cells = self.driver.find_elements(By.CSS_SELECTOR, '.ag-header-cell')
-                for i, header in enumerate(header_cells):
-                    if "GEO" in header.text.strip().upper():
-                        geo_column_index = i
-                        self.logger.info(f"Found GEO column at index {i} from header")
-                        break
+            if not rows:
+                raise Exception("Could not find any rows")
 
-            if geo_column_index is None:
-                self.logger.error("Could not find GEO column")
-                return None
-
-            # Get all column headers
-            header_cells = self.driver.find_elements(By.CSS_SELECTOR, '.ag-header-cell')
-            header_texts = [header.text.strip() for header in header_cells]
-            self.logger.info(f"Found headers: {header_texts}")
-
-            # Find year columns
-            year_columns = {}
-            for i, header in enumerate(header_texts):
-                for year in years:
-                    if year in header:
-                        year_columns[year] = i
-                        self.logger.info(f"Found column for year {year} at index {i}")
+            # Skip the header row
+            rows = rows[1:] if len(rows) > 1 else []
+            self.logger.info(f"Processing {len(rows)} data rows (excluding header)")
 
             processed_rows = []
             for row in rows:
                 try:
-                    cells = row.find_elements(By.CSS_SELECTOR, '.ag-cell')
-                    if len(cells) <= geo_column_index:
-                        continue
+                    # Get the country name from the first cell with multiple attempts
+                    first_cell = None
+                    cell_selectors = [
+                        '.ag-cell[col-id="geo"]',
+                        '.ag-cell-first-left-pinned',
+                        '.ag-cell-last-left-pinned',
+                        '[role="gridcell"]'
+                    ]
+                    
+                    for selector in cell_selectors:
+                        try:
+                            first_cell = row.find_element(By.CSS_SELECTOR, selector)
+                            if first_cell:
+                                self.logger.info(f"Found first cell with selector: {selector}")
+                                break
+                        except:
+                            continue
+                    
+                    if not first_cell:
+                        raise Exception("Could not find the first cell")
 
-                    # Get the country name from the GEO column
-                    geo_cell = cells[geo_column_index]
-                    geo_text = geo_cell.text.strip()
-
+                    country_text = first_cell.text.strip()
+                    self.logger.info(f"Found country text: {country_text}")
+                    
                     # Try to find a matching country/region
                     geo_area = None
                     for country in eu_countries:
-                        if geo_text.lower() == country.lower():
+                        if country_text.lower() == country.lower():
                             geo_area = country
                             break
 
-                    # Skip if no valid country/region found
                     if not geo_area:
-                        self.logger.info(f"Skipping row, no valid country/region found in: {geo_text}")
+                        self.logger.info(f"Skipping row, no valid country/region found in: {country_text}")
                         continue
 
-                    # Initialize row_data with default values
-                    row_data = {
-                        'geo_area': geo_area,
-                    }
-
-                    # Initialize all years with None
+                    # Initialize row_data
+                    row_data = {'geo_area': geo_area}
                     for year in range(2015, 2025):
                         row_data[f'year_{year}'] = None
 
-                    # Get values for each year from cells
-                    for year, col_index in year_columns.items():
-                        if col_index < len(cells):
-                            try:
-                                cell_value = cells[col_index].text.strip()
+                    # Get values for each year with multiple attempts
+                    for year in years:
+                        try:
+                            # Try different selectors for year cells
+                            cell = None
+                            year_cell_selectors = [
+                                f'.ag-cell[col-id="{year}"]',
+                                f'[role="gridcell"][col-id="{year}"]',
+                                f'[aria-colindex="{int(year)-2014}"]',  # Assuming 2015 is index 1
+                                f'.ag-cell[col-id="TIME_PERIOD"][col-value="{year}"]',
+                                f'.ag-cell[col-id="value"][col-value="{year}"]',
+                                f'.ag-cell[col-id="values"][col-value="{year}"]',
+                                f'.ag-cell[col-id="value_{year}"]',
+                                f'.ag-cell[col-id="values_{year}"]',
+                                f'.ag-cell[col-id="TIME_PERIOD_{year}"]',
+                                f'.ag-cell[col-id="value"][aria-colindex="{int(year)-2014}"]',
+                                f'.ag-cell[col-id="values"][aria-colindex="{int(year)-2014}"]',
+                                f'.ag-cell[col-id="TIME_PERIOD"][aria-colindex="{int(year)-2014}"]'
+                            ]
+                            
+                            for selector in year_cell_selectors:
+                                try:
+                                    cell = row.find_element(By.CSS_SELECTOR, selector)
+                                    if cell:
+                                        self.logger.info(f"Found year cell with selector: {selector}")
+                                        # Log the cell's attributes for debugging
+                                        self.logger.info(f"Cell attributes: {cell.get_attribute('outerHTML')}")
+                                        break
+                                except Exception as e:
+                                    self.logger.debug(f"Could not find cell with selector {selector}: {str(e)}")
+                                    continue
+                            
+                            if cell:
+                                cell_value = cell.text.strip()
                                 # Remove any non-numeric characters except decimal point and minus sign
                                 cell_value = re.sub(r'[^\d.-]', '', cell_value)
-                                # Convert to float if not empty
                                 if cell_value:
-                                    row_data[f'year_{year}'] = float(cell_value)
-                                    self.logger.info(f"Found value for {geo_area}, year {year}: {cell_value}")
-                            except (ValueError, IndexError) as e:
-                                self.logger.warning(f"Error processing cell value for {geo_area}, year {year}: {str(e)}")
-                                continue
+                                    try:
+                                        # Convert to float, handling any formatting issues
+                                        value = float(cell_value.replace(',', ''))
+                                        row_data[f'year_{year}'] = value
+                                        self.logger.info(f"Found value for {geo_area}, year {year}: {value}")
+                                    except ValueError as e:
+                                        self.logger.warning(f"Could not convert value '{cell_value}' to float for {geo_area}, year {year}: {str(e)}")
+                            else:
+                                self.logger.warning(f"Could not find cell for {geo_area}, year {year}")
+                        except Exception as e:
+                            self.logger.warning(f"Error processing cell value for {geo_area}, year {year}: {str(e)}")
+                            continue
 
                     processed_rows.append(row_data)
-                    self.logger.info(f"Processed row for GEO: {geo_area} with years: {[f'{year}: {row_data[f'year_{year}']}'for year in range(2015, 2025)]}")
+                    self.logger.info(f"Successfully processed row for {geo_area}")
 
                 except Exception as e:
                     self.logger.error(f"Error processing row: {str(e)}")
                     continue
+
+            if not processed_rows:
+                raise Exception("No rows were successfully processed")
 
             self.logger.info(f"Successfully processed {len(processed_rows)} rows of data")
             return processed_rows
 
         except Exception as e:
             self.logger.error(f"Failed to extract table data: {str(e)}")
+            # Try to get page source for debugging
+            try:
+                page_source = self.driver.page_source
+                self.logger.error(f"Page source length: {len(page_source)}")
+            except:
+                pass
             return None
 
     @transaction.atomic
@@ -288,59 +332,54 @@ class EurostatScraper:
 
         self.logger.info(f"Successfully saved {saved_count} data points")
 
+    def save_to_csv(self, data):
+        """Save the scraped data to a CSV file"""
+        if not data:
+            self.logger.error("No data to save to CSV")
+            return
+
+        try:
+            # Create DataFrame from the data
+            df = pd.DataFrame(data)
+            
+            # Reorder columns to put geo_area first
+            columns = ['geo_area'] + [f'year_{year}' for year in range(2015, 2025)]
+            df = df[columns]
+            
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'data/gdp_data_{timestamp}.csv'
+            
+            # Ensure data directory exists
+            os.makedirs('data', exist_ok=True)
+            
+            # Save to CSV
+            df.to_csv(filename, index=False)
+            self.logger.info(f"Data saved to CSV file: {filename}")
+            
+            # Also save a copy without timestamp
+            df.to_csv('data/gdp_data_latest.csv', index=False)
+            self.logger.info("Data also saved as gdp_data_latest.csv")
+            
+        except Exception as e:
+            self.logger.error(f"Error saving data to CSV: {str(e)}")
+
     def run_scraper(self):
         try:
             self.logger.info("Starting scraper run...")
             self.driver.get(self.base_url)
             self.logger.info("Successfully loaded URL")
 
-            # Wait for page to load with longer timeout and ensure table is fully loaded
-            time.sleep(30)  # Give more time for initial load
+            # Wait for initial load
+            time.sleep(20)
+            self.logger.info("Initial wait completed")
 
-            # Try to click on the dimension button first
-            try:
-                # Wait for the dimension button to be clickable
-                dimension_button = WebDriverWait(self.driver, 20).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[title="Select dimension"]'))
-                )
-                dimension_button.click()
-                time.sleep(2)
-                self.logger.info("Clicked dimension button")
-
-                # Try to find and click the GEO dimension
-                geo_items = self.driver.find_elements(By.CSS_SELECTOR, '.ag-virtual-list-item')
-                for item in geo_items:
-                    if "GEO" in item.text:
-                        item.click()
-                        time.sleep(2)
-                        break
-                self.logger.info("Clicked GEO dimension")
-
-                # Try to find the country list
-                country_items = self.driver.find_elements(By.CSS_SELECTOR, '.ag-virtual-list-item')
-                country_names = []
-                for item in country_items:
-                    text = item.text.strip()
-                    self.logger.info(f"Found country item: {text}")
-                    country_names.append(text)
-
-                # Close the dimension panel
-                close_button = self.driver.find_element(By.CSS_SELECTOR, 'button[aria-label="Close"]')
-                close_button.click()
-                time.sleep(2)
-
-            except Exception as e:
-                self.logger.warning(f"Could not interact with dimension menu: {str(e)}")
-
-            # Scroll to ensure all content is loaded
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(5)
-            self.driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(5)
-
-            # Extract and save data
+            # Extract data
             data = self.extract_table_data()
             if data:
+                # Save to CSV first
+                self.save_to_csv(data)
+                # Then save to database
                 self.save_data(data)
                 self.logger.info("Data saved successfully")
             else:
@@ -349,9 +388,5 @@ class EurostatScraper:
         except Exception as e:
             self.logger.error(f"Error in scraper run: {str(e)}", exc_info=True)
         finally:
-            if self.driver:
-                try:
-                    self.driver.quit()
-                except Exception as e:
-                    self.logger.error(f"Error closing driver: {str(e)}")
+            self.cleanup()
             self.logger.info("Scraper run completed") 
