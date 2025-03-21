@@ -14,17 +14,9 @@ class Command(BaseCommand):
             dest='headless',
             help='Run browser in visible mode (not headless)',
         )
-
-    def handle(self, *args, **options):
-        self.stdout.write('Starting Eurostat GDP data scraping...')
-        
+    def handle(*args, **options):
         try:
-            with EurostatScraper(headless=options['headless']) as scraper:
-                scraper.run_scraper()
-            self.stdout.write(self.style.SUCCESS('Successfully scraped Eurostat GDP data'))
-            
+            with EurostatScraper(headless=options.get('headless', True)) as scraper:
+                scraper.run()
         except Exception as e:
-            logger.error(f"Error in scraper execution: {str(e)}", exc_info=True)
-            self.stdout.write(
-                self.style.ERROR(f'Error scraping Eurostat data: {str(e)}')
-            ) 
+            logger.error(f"Error scraping Eurostat data: {e}")
