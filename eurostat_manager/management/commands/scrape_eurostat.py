@@ -19,11 +19,11 @@ class Command(BaseCommand):
         try:
             with EurostatScraper(headless=options.get('headless', True)) as scraper:
                 # Extraer los datos de la tabla
-                data = scraper.extract_table_data()
+                headers, data = scraper.extract_table_data()
                 
-                if data:
+                if headers and data:
                     # Guardar los datos en un archivo CSV
-                    scraper.save_to_csv(data)
+                    scraper.save_to_csv(headers, data)
                     self.stdout.write(self.style.SUCCESS("Datos extraídos y guardados correctamente."))
                 else:
                     logger.error("No se pudieron extraer datos de la tabla.")

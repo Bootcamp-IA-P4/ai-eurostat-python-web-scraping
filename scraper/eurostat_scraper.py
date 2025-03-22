@@ -12,6 +12,8 @@ import pandas as pd
 import os
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
+import csv
+
 
 # Configurar la carpeta de logs
 log_dir = "logs"
@@ -192,8 +194,8 @@ class EurostatScraper:
         """Extrae los datos de la tabla de la página con reintentos."""
         if not self.driver:
             logger.error("Driver no inicializado. No se pueden extraer datos.")
-            return None
-            
+            return None, None  # Devuelve None para encabezados y datos
+
         max_attempts = 1  # Número máximo de intentos
         for attempt in range(max_attempts):
             try:
@@ -219,8 +221,8 @@ class EurostatScraper:
                 self.capture_screenshot("after_scroll")
 
                 # Extraer los encabezados de la tabla
-                headers = self.driver.find_elements(By.CSS_SELECTOR, ".ag-header-cell-text")
-                header_data = [header.text for header in headers]
+                headers = self.driver.find_elements(By.CSS_SELECTOR, ".table-header-text")
+                header_data = [header.text.strip() for header in headers if header.text.strip()]
                 logger.info(f"Encabezados extraídos: {header_data}")
 
                 # Extraer las filas de la tabla
@@ -228,13 +230,11 @@ class EurostatScraper:
                 data = []
                 for row in rows:
                     cells = row.find_elements(By.CSS_SELECTOR, ".ag-cell")
-                    row_data = [cell.text if cell.text else "" for cell in cells]  # Rellenar celdas en blanco
+                    row_data = [cell.text.strip() if cell.text.strip() else "" for cell in cells]  # Rellenar celdas en blanco
                     data.append(row_data)
                 logger.info(f"Se extrajeron {len(data)} filas de la tabla.")
-                for d in data:
-                    print(f"{d}")
 
-                return data
+                return header_data, data  # Devuelve encabezados y datos por separado
 
             except TimeoutException as e:
                 if attempt < max_attempts - 1:  # Si no es el último intento
@@ -249,37 +249,52 @@ class EurostatScraper:
                 logger.error(f"Error al extraer datos de la tabla: {e}", exc_info=True)  # Registrar el stacktrace completo
                 raise
 
-    def save_to_csv(self, data):
-        """Guarda los datos extraídos en un archivo CSV."""
-        if not data:
-            logger.error("No hay datos para guardar.")
-            return
-
+    def save_to_csv(self, headers, data, filename="output.csv"):
+        """
+        Guarda los datos en un CSV con la estructura especificada.
+        
+        :param headers: Lista de cabeceras (TIME, GEO, años, países/regiones).
+        :param data: Lista de listas con los datos de la tabla.
+        :param filename: Nombre del archivo CSV.
+        """
         try:
-            # Verificar si hay datos de encabezado
-            if len(data) > 1:
-                # Usar la primera fila como encabezados
-                headers = data[0]
-                rows = data[1:]
-            else:
-                # Si no hay encabezados, usar índices genéricos como columnas
-                headers = [f"Column_{i}" for i in range(len(data[0]))]
-                rows = data
-
-            # Crear DataFrame
-            df = pd.DataFrame(rows, columns=headers)
-            
             # Crear la carpeta "data" si no existe
             os.makedirs("data", exist_ok=True)
-            
+
             # Generar el nombre del archivo con fecha y hora
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"data/gdp_data_{timestamp}.csv"
-            
-            # Guardar el DataFrame en un archivo CSV
-            df.to_csv(filename, index=False)
+
+            # Extraer los años y los países/regiones de las cabeceras
+            years = [h for h in headers if h.isdigit()]  # Años
+            countries_regions = headers[2:]  # Países/regiones (después de TIME y GEO)
+            # TODO: Validar si hay años y países/regiones
+            print("TEST: print Years:")
+            for y in years:
+                print(y)
+            print("TEST: print Countries/Regions:")                
+            for c in countries_regions:
+                print(c)
+            # Abrir el archivo CSV en modo escritura
+            with open(filename, mode='w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+
+                # Escribir la primera fila (TIME y años)
+                time_row = ["TIME"] + years  # TIME + años
+                writer.writerow(time_row)
+
+                # Escribir la segunda fila (GEO y celdas vacías)
+                geo_row = ["GEO"] + [""] * len(years)  # GEO + celdas vacías
+                writer.writerow(geo_row)
+
+                # Escribir los datos (países/regiones y valores)
+                for i, row in enumerate(data):
+                    # Cada fila de datos comienza con el país/región y luego los valores
+                    country_region = countries_regions[i]  # El país/región correspondiente
+                    writer.writerow([country_region] + row)
+
             logger.info(f"Datos guardados en el archivo CSV: {filename}")
-            
+
         except Exception as e:
             logger.error(f"Error al guardar los datos en CSV: {e}", exc_info=True)
 
