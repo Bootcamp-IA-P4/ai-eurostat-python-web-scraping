@@ -258,6 +258,29 @@ class EurostatScraper:
         :param filename: Nombre del archivo CSV.
         """
         try:
+            # Extraer años y países/regiones dinámicamente
+            years = [h for h in headers if h.isdigit()]  # Años (elementos que son números)
+            countries_regions = [h for h in headers if not h.isdigit() and h not in ["TIME", "GEO"]]  # Países/regiones
+
+            # Filtrar los datos para eliminar cabeceras y quedarnos solo con los valores
+            clean_data = []
+            for row in data:
+                # Si la fila contiene valores numéricos, es una fila de datos
+                if any(cell.replace(".", "").replace(" ", "").isdigit() for cell in row):
+                    clean_data.append(row)
+
+            # Depuración: Imprimir años, países/regiones y datos limpios
+            print("Años:", years)
+            print("Países/Regiones:", countries_regions)
+            print("Datos limpios:", clean_data)
+            print("Número de filas limpias:", len(clean_data))
+
+            # Verificar que countries_regions y clean_data tengan la misma longitud
+            if len(countries_regions) != len(clean_data):
+                logger.error(f"Error: countries_regions y clean_data no tienen la misma longitud.")
+                logger.error(f"countries_regions: {len(countries_regions)}, clean_data: {len(clean_data)}")
+                return
+
             # Crear la carpeta "data" si no existe
             os.makedirs("data", exist_ok=True)
 
@@ -265,16 +288,6 @@ class EurostatScraper:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"data/gdp_data_{timestamp}.csv"
 
-            # Extraer los años y los países/regiones de las cabeceras
-            years = [h for h in headers if h.isdigit()]  # Años
-            countries_regions = headers[2:]  # Países/regiones (después de TIME y GEO)
-            # TODO: Validar si hay años y países/regiones
-            print("TEST: print Years:")
-            for y in years:
-                print(y)
-            print("TEST: print Countries/Regions:")                
-            for c in countries_regions:
-                print(c)
             # Abrir el archivo CSV en modo escritura
             with open(filename, mode='w', newline='', encoding='utf-8') as file:
                 writer = csv.writer(file)
@@ -288,7 +301,7 @@ class EurostatScraper:
                 writer.writerow(geo_row)
 
                 # Escribir los datos (países/regiones y valores)
-                for i, row in enumerate(data):
+                for i, row in enumerate(clean_data):
                     # Cada fila de datos comienza con el país/región y luego los valores
                     country_region = countries_regions[i]  # El país/región correspondiente
                     writer.writerow([country_region] + row)
@@ -298,6 +311,7 @@ class EurostatScraper:
         except Exception as e:
             logger.error(f"Error al guardar los datos en CSV: {e}", exc_info=True)
 
+            
     def capture_screenshot(self, filename):
         """Captura una captura de pantalla de la página actual con fecha y hora."""
         if not self.driver:
