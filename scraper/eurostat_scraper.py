@@ -274,15 +274,31 @@ class EurostatScraper:
             table_element = self.driver.find_element(By.CSS_SELECTOR, "#estat-content-view-table")
             self.scroll_to_element(table_element)
 
+            # Hacer scroll horizontal en la tabla
+            logger.info("Haciendo scroll horizontal en la tabla...")
+            scrollable_div = self.driver.find_element(By.CSS_SELECTOR, ".ag-body-horizontal-scroll-viewport")  # Contenedor de scroll
+            self.driver.execute_script("arguments[0].scrollLeft = 0;", scrollable_div)
+            logger.info("Scroll horizontal realizado correctamente hacia la izquierda.")
+
+            # Esperar un momento para que se carguen los datos después del scroll
+            time.sleep(2)  # Ajusta el tiempo según sea necesario
+
             # Extraer las cabeceras de la tabla
             headers = self.driver.find_elements(By.CSS_SELECTOR, ".table-header-text")
             header_data = [header.text.strip() for header in headers if header.text.strip()]
             logger.info(f"Encabezados extraídos: {header_data}")
 
-            # Extraer los datos visibles de la tabla
-            all_data = self.extract_visible_table_data()
+            # Extraer los datos de la tabla
+            rows = self.driver.find_elements(By.CSS_SELECTOR, ".ag-row")
+            data = []
+            for row in rows:
+                cells = row.find_elements(By.CSS_SELECTOR, ".ag-cell")
+                row_data = [cell.text.strip() if cell.text.strip() else "" for cell in cells]  # Rellenar celdas en blanco
+                data.append(row_data)
+            logger.info(f"Se extrajeron {len(data)} filas de la tabla.")
 
-            return header_data, all_data
+            return header_data, data  # Devuelve encabezados y datos por separado
+
         except Exception as e:
             logger.error(f"Error al extraer datos de la tabla: {e}", exc_info=True)
             return None, None
