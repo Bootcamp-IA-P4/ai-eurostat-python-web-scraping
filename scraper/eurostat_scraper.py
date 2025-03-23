@@ -8,6 +8,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.action_chains import ActionChains
 import pandas as pd
 import os
 from datetime import datetime
@@ -76,6 +77,7 @@ class EurostatScraper:
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--window-size=1920,1080")
             chrome_options.add_argument("--disable-notifications")
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # Desactivar el mensaje
             
             # Desactivar la carga de imágenes para mejorar el rendimiento
             chrome_options.add_experimental_option("prefs", {
@@ -180,7 +182,7 @@ class EurostatScraper:
             
             # Capturar una captura de pantalla después de esperar la tabla
             self.capture_screenshot("after_wait_for_table")
-            
+
         except TimeoutException as e:
             logger.error(f"Timeout al esperar la carga de la tabla: {e}")
             self.capture_screenshot("timeout_error")
@@ -190,65 +192,101 @@ class EurostatScraper:
             self.capture_screenshot("wait_for_table_error")
             raise
 
+    def scroll_horizontal(self, scrollable_div):
+        """Realiza un scroll horizontal directo en un contenedor gestionado por JavaScript."""
+        try:
+            logger.info("Iniciando scroll horizontal directo en el contenedor...")
+            
+            # Verificar si el contenedor tiene scroll horizontal
+            scroll_width = self.driver.execute_script("return arguments[0].scrollWidth", scrollable_div)
+            visible_width = self.driver.execute_script("return arguments[0].clientWidth", scrollable_div)
+            logger.info(f"scrollWidth: {scroll_width}, clientWidth: {visible_width}")
+            
+            if scroll_width <= visible_width:
+                logger.warning("El contenedor no tiene scroll horizontal. No se realizará el scroll.")
+                return
+            
+            # Mover el scroll directamente al final
+            self.driver.execute_script("""
+                arguments[0].scrollLeft = arguments[0].scrollWidth;
+                arguments[0].dispatchEvent(new Event('scroll'));
+            """, scrollable_div)
+            logger.info("Scroll horizontal directo realizado correctamente (al final).")
+            
+            # Verificar la posición actual del scroll
+            current_scroll = self.driver.execute_script("return arguments[0].scrollLeft", scrollable_div)
+            logger.info(f"Posición actual del scroll después de mover al final: {current_scroll}px")
+            
+            # Opcional: Mover el scroll de vuelta al inicio
+            self.driver.execute_script("""
+                arguments[0].scrollLeft = 0;
+                arguments[0].dispatchEvent(new Event('scroll'));
+            """, scrollable_div)
+            logger.info("Scroll horizontal directo realizado correctamente (al inicio).")
+            
+            # Verificar la posición actual del scroll
+            current_scroll = self.driver.execute_script("return arguments[0].scrollLeft", scrollable_div)
+            logger.info(f"Posición actual del scroll después de mover al inicio: {current_scroll}px")
+            
+        except Exception as e:
+            logger.error(f"Error al realizar el scroll horizontal directo: {e}")
+
+
+    def extract_visible_table_data(self):
+        """Extrae los datos visibles de la tabla sin realizar scroll horizontal."""
+        try:
+            logger.info("Iniciando extracción de datos visibles de la tabla...")
+            
+            # Seleccionar las filas visibles de la tabla
+            rows = self.driver.find_elements(By.CSS_SELECTOR, ".ag-row")
+            all_data = []  # Almacenar todos los datos extraídos
+            
+            for row in rows:
+                cells = row.find_elements(By.CSS_SELECTOR, ".ag-cell")
+                row_data = [cell.text.strip() for cell in cells]
+                all_data.append(row_data)
+            
+            logger.info("Extracción de datos visibles completada.")
+            return all_data
+        except Exception as e:
+            logger.error(f"Error al extraer los datos visibles de la tabla: {e}")
+            return []
+        
     def extract_table_data(self):
         """Extrae los datos de la tabla de la página con reintentos."""
         if not self.driver:
             logger.error("Driver no inicializado. No se pueden extraer datos.")
             return None, None  # Devuelve None para encabezados y datos
 
-        max_attempts = 1  # Número máximo de intentos
-        for attempt in range(max_attempts):
-            try:
-                logger.info(f"Intento {attempt + 1} de extraer los datos de la tabla...")
-                self.driver.get(self.base_url)
-                logger.info("Página cargada correctamente.")
+        try:
+            logger.info("Iniciando extracción de datos de la tabla...")
+            self.driver.get(self.base_url)
+            logger.info("Página cargada correctamente.")
 
-                # Aceptar cookies (si está presente)
-                self.accept_cookies()
+            # Aceptar cookies (si está presente)
+            self.accept_cookies()
 
-                # Esperar a que la tabla esté completamente cargada y sea clickeable
-                self.wait_for_table_to_load()
+            # Esperar a que la tabla esté completamente cargada y sea clickeable
+            self.wait_for_table_to_load()
 
-                # Capturar una captura de pantalla antes del scroll
-                self.capture_screenshot("before_scroll")
+            # Hacer scroll hasta la tabla
+            logger.info("Haciendo scroll hasta la tabla...")
+            table_element = self.driver.find_element(By.CSS_SELECTOR, "#estat-content-view-table")
+            self.scroll_to_element(table_element)
 
-                # Hacer scroll hasta la tabla
-                logger.info("Haciendo scroll hasta la tabla...")
-                table_element = self.driver.find_element(By.CSS_SELECTOR, "#estat-content-view-table")
-                self.scroll_to_element(table_element)
+            # Extraer las cabeceras de la tabla
+            headers = self.driver.find_elements(By.CSS_SELECTOR, ".table-header-text")
+            header_data = [header.text.strip() for header in headers if header.text.strip()]
+            logger.info(f"Encabezados extraídos: {header_data}")
 
-                # Capturar una captura de pantalla después del scroll
-                self.capture_screenshot("after_scroll")
+            # Extraer los datos visibles de la tabla
+            all_data = self.extract_visible_table_data()
 
-                # Extraer los encabezados de la tabla
-                headers = self.driver.find_elements(By.CSS_SELECTOR, ".table-header-text")
-                header_data = [header.text.strip() for header in headers if header.text.strip()]
-                logger.info(f"Encabezados extraídos: {header_data}")
-
-                # Extraer las filas de la tabla
-                rows = self.driver.find_elements(By.CSS_SELECTOR, ".ag-row")
-                data = []
-                for row in rows:
-                    cells = row.find_elements(By.CSS_SELECTOR, ".ag-cell")
-                    row_data = [cell.text.strip() if cell.text.strip() else "" for cell in cells]  # Rellenar celdas en blanco
-                    data.append(row_data)
-                logger.info(f"Se extrajeron {len(data)} filas de la tabla.")
-
-                return header_data, data  # Devuelve encabezados y datos por separado
-
-            except TimeoutException as e:
-                if attempt < max_attempts - 1:  # Si no es el último intento
-                    logger.warning(f"Intento {attempt + 1} fallido por timeout, reintentando...")
-                    time.sleep(5)  # Esperar antes de reintentar
-                else:
-                    self.capture_screenshot("timeout_error")
-                    logger.error(f"Timeout al cargar la tabla después de {max_attempts} intentos: {e}")
-                    raise
-            except Exception as e:
-                self.capture_screenshot("extract_table_data_error")
-                logger.error(f"Error al extraer datos de la tabla: {e}", exc_info=True)  # Registrar el stacktrace completo
-                raise
-
+            return header_data, all_data
+        except Exception as e:
+            logger.error(f"Error al extraer datos de la tabla: {e}", exc_info=True)
+            return None, None
+        
     def save_to_csv(self, headers, data, filename="output.csv"):
         """
         Guarda los datos en un CSV con la estructura especificada.
