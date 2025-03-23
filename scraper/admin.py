@@ -1,16 +1,5 @@
 from django.contrib import admin
-from scraper.models import GDPCategory, GDPData, GDPTableData
-
-@admin.register(GDPCategory)
-class GDPCategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'url', 'created_at', 'updated_at')
-    search_fields = ('name',)
-
-@admin.register(GDPData)
-class GDPDataAdmin(admin.ModelAdmin):
-    list_display = ('indicator', 'geo_area', 'time_period', 'value', 'unit', 'created_at')
-    list_filter = ('category', 'geo_area', 'time_period', 'unit')
-    search_fields = ('indicator', 'geo_area')
+from scraper.models import GDPTableData
 
 @admin.register(GDPTableData)
 class GDPTableDataAdmin(admin.ModelAdmin):

@@ -439,10 +439,15 @@ class EurostatScraper:
                     }
 
                     # Asignar los valores de los años correspondientes
-                    for j, year in enumerate(years):
-                        if year in year_to_field:
-                            field_name = year_to_field[year]
-                            gdp_data[field_name] = float(row[j].replace(" ", "")) if row[j] else None
+            for j, year in enumerate(years):
+                if year in year_to_field:
+                    field_name = year_to_field[year]
+                    # Verificar si el valor está en blanco o es ":"
+                    if row[j].strip() == ":" or not row[j].strip():
+                        gdp_data[field_name] = None  # Asignar None si está en blanco o es ":"
+                    else:
+                        # Convertir a float si el valor es válido
+                        gdp_data[field_name] = float(row[j].replace(" ", ""))
 
                     # Crear y guardar el objeto en la base de datos
                     GDPTableData.objects.create(**gdp_data)
