@@ -14,6 +14,8 @@ import os
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 import csv
+from django.db import transaction
+from .models import GDPTableData # Importar el modelo de Django
 
 
 # Configurar la carpeta de logs
@@ -262,28 +264,62 @@ class EurostatScraper:
             logger.info("Iniciando extracción de datos de la tabla...")
             self.driver.get(self.base_url)
             logger.info("Página cargada correctamente.")
-
             # Aceptar cookies (si está presente)
             self.accept_cookies()
-
             # Esperar a que la tabla esté completamente cargada y sea clickeable
             self.wait_for_table_to_load()
-
             # Hacer scroll hasta la tabla
             logger.info("Haciendo scroll hasta la tabla...")
             table_element = self.driver.find_element(By.CSS_SELECTOR, "#estat-content-view-table")
             self.scroll_to_element(table_element)
+            # Esperar un momento para que se carguen los datos después del scroll vertical
+            time.sleep(2)
+            # Extraer los headers de los años visibles
+            logger.info("Extrayendo headers de los años visibles...")
+            year_headers = self.driver.find_elements(By.CSS_SELECTOR, ".ag-header-group-cell .table-header-text")
+            years = [header.text.strip() for header in year_headers if header.text.strip().isdigit()]
+            logger.info(f"Años visibles extraídos: {years}")
 
-            # Hacer scroll horizontal en la tabla
-            logger.info("Haciendo scroll horizontal en la tabla...")
-            scrollable_div = self.driver.find_element(By.CSS_SELECTOR, ".ag-body-horizontal-scroll-viewport")  # Contenedor de scroll
+            # Hacer scroll horizontal hasta la mitad para capturar el año 2019
+            logger.info("Haciendo scroll horizontal hasta la mitad...")
+            scrollable_div = self.driver.find_element(By.CSS_SELECTOR, ".ag-body-horizontal-scroll-viewport")
+            scroll_width = self.driver.execute_script("return arguments[0].scrollWidth", scrollable_div)
+            self.driver.execute_script(f"arguments[0].scrollLeft = {scroll_width // 3};", scrollable_div)
+            logger.info("Scroll horizontal hasta la mitad realizado correctamente.")
+
+            # Esperar un momento para que se carguen los datos después del scroll a la mitad
+            time.sleep(5)
+
+            # Extraer los headers de los años adicionales (incluyendo 2019)
+            logger.info("Extrayendo headers de los años adicionales (hasta la mitad)...")
+            additional_year_headers = self.driver.find_elements(By.CSS_SELECTOR, ".ag-header-group-cell .table-header-text")
+            additional_years = [header.text.strip() for header in additional_year_headers if header.text.strip().isdigit()]
+            logger.info(f"Años adicionales extraídos (hasta la mitad): {additional_years}")
+
+            # Hacer scroll horizontal completo hacia la izquierda
+            logger.info("Haciendo scroll horizontal completo hacia la izquierda...")
             self.driver.execute_script("arguments[0].scrollLeft = 0;", scrollable_div)
-            logger.info("Scroll horizontal realizado correctamente hacia la izquierda.")
+            logger.info("Scroll horizontal completo hacia la izquierda realizado correctamente.")
 
-            # Esperar un momento para que se carguen los datos después del scroll
-            time.sleep(2)  # Ajusta el tiempo según sea necesario
+            # Esperar un momento para que se carguen los datos después del scroll completo
+            time.sleep(2)
 
-            # Extraer las cabeceras de la tabla
+            # Extraer los headers de los años restantes
+            logger.info("Extrayendo headers de los años restantes...")
+            remaining_year_headers = self.driver.find_elements(By.CSS_SELECTOR, ".ag-header-group-cell .table-header-text")
+            remaining_years = [header.text.strip() for header in remaining_year_headers if header.text.strip().isdigit()]
+            logger.info(f"Años restantes extraídos: {remaining_years}")
+
+            # Combinar y ordenar los años de menor a mayor
+            all_years = list(set(years + additional_years + remaining_years))  # Eliminar duplicados
+            all_years.sort()  # Ordenar de menor a mayor
+            logger.info(f"Todos los años extraídos: {all_years}")
+
+            # Filtrar los años para eliminar aquellos inferiores a 2019
+            filtered_years = [year for year in all_years if int(year) >= 2019]
+            logger.info(f"Años filtrados (>= 2019): {filtered_years}")
+
+            # Extraer las cabeceras de la tabla (GEO y TIME)
             headers = self.driver.find_elements(By.CSS_SELECTOR, ".table-header-text")
             header_data = [header.text.strip() for header in headers if header.text.strip()]
             logger.info(f"Encabezados extraídos: {header_data}")
@@ -297,15 +333,21 @@ class EurostatScraper:
                 data.append(row_data)
             logger.info(f"Se extrajeron {len(data)} filas de la tabla.")
 
-            return header_data, data  # Devuelve encabezados y datos por separado
+            # Combinar los encabezados (TIME, GEO y años)
+            final_headers = ["TIME", "GEO"] + filtered_years
+            logger.info(f"Encabezados finales: {final_headers}")
+            #Test
+            print("TEST**Encabezados finales: ", final_headers)
+            print("TEST**Datos: ", data)
+            return header_data, data, filtered_years # Devuelve encabezados y datos por separado
 
         except Exception as e:
             logger.error(f"Error al extraer datos de la tabla: {e}", exc_info=True)
             return None, None
         
-    def save_to_csv(self, headers, data, filename="output.csv"):
+    def save_to_csv(self, headers, data, years, filename="output.csv"):
         """
-        Guarda los datos en un CSV con la estructura especificada.
+        Guarda los datos en un CSV y en la base de datos.
         
         :param headers: Lista de cabeceras (TIME, GEO, años, países/regiones).
         :param data: Lista de listas con los datos de la tabla.
@@ -313,26 +355,26 @@ class EurostatScraper:
         """
         try:
             # Extraer años y países/regiones dinámicamente
-            years = [h for h in headers if h.isdigit()]  # Años (elementos que son números)
+            # years = [h for h in headers if h.isdigit()]  # Años (elementos que son números)
             countries_regions = [h for h in headers if not h.isdigit() and h not in ["TIME", "GEO"]]  # Países/regiones
-
+            #print("TEST**countries_regions: ", countries_regions)
             # Filtrar los datos para eliminar cabeceras y quedarnos solo con los valores
             clean_data = []
             for row in data:
-                # Si la fila contiene valores numéricos, es una fila de datos
+                #Si la fila contiene valores numéricos, es una fila de datos
                 if any(cell.replace(".", "").replace(" ", "").isdigit() for cell in row):
                     clean_data.append(row)
 
             # Depuración: Imprimir años, países/regiones y datos limpios
             print("Años:", years)
-            print("Países/Regiones:", countries_regions)
-            print("Datos limpios:", clean_data)
-            print("Número de filas limpias:", len(clean_data))
+            #print("Países/Regiones:", countries_regions)
+            #print("Datos limpios:", clean_data)
+            #print("Número de filas limpias:", len(clean_data))
 
             # Verificar que countries_regions y clean_data tengan la misma longitud
             if len(countries_regions) != len(clean_data):
                 logger.error(f"Error: countries_regions y clean_data no tienen la misma longitud.")
-                logger.error(f"countries_regions: {len(countries_regions)}, clean_data: {len(clean_data)}")
+                logger.error(f"Países/Regiones: {len(countries_regions)}, Datos limpios: {len(clean_data)}")
                 return
 
             # Crear la carpeta "data" si no existe
@@ -362,9 +404,52 @@ class EurostatScraper:
 
             logger.info(f"Datos guardados en el archivo CSV: {filename}")
 
-        except Exception as e:
-            logger.error(f"Error al guardar los datos en CSV: {e}", exc_info=True)
+            # Guardar los datos en la base de datos
+            self.save_to_db(countries_regions, clean_data, years)
 
+        except Exception as e:
+            logger.error(f"Error al guardar los datos en CSV o base de datos: {e}", exc_info=True)
+
+    def save_to_db(self, countries_regions, clean_data, years):
+        """
+        Guarda los datos en la base de datos.
+        
+        :param countries_regions: Lista de países/regiones.
+        :param clean_data: Lista de listas con los datos de la tabla.
+        :param years: Lista de años.
+        """
+        try:
+            # Crear un diccionario para mapear los años a los campos del modelo
+            year_to_field = {
+                "2019": "year_2019",
+                "2020": "year_2020",
+                "2021": "year_2021",
+                "2022": "year_2022",
+                "2023": "year_2023",
+                "2024": "year_2024",
+            }
+
+            # Usar una transacción para garantizar la atomicidad
+            with transaction.atomic():
+                for i, row in enumerate(clean_data):
+                    # Crear un diccionario con los datos para el modelo
+                    gdp_data = {
+                        "unit": "Million euro",
+                        "geo_area": countries_regions[i],
+                    }
+
+                    # Asignar los valores de los años correspondientes
+                    for j, year in enumerate(years):
+                        if year in year_to_field:
+                            field_name = year_to_field[year]
+                            gdp_data[field_name] = float(row[j].replace(" ", "")) if row[j] else None
+
+                    # Crear y guardar el objeto en la base de datos
+                    GDPTableData.objects.create(**gdp_data)
+
+            logger.info("Datos guardados en la base de datos correctamente.")
+        except Exception as e:
+            logger.error(f"Error al guardar los datos en la base de datos: {e}", exc_info=True)
             
     def capture_screenshot(self, filename):
         """Captura una captura de pantalla de la página actual con fecha y hora."""

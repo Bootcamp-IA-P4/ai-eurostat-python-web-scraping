@@ -34,13 +34,10 @@ class GDPData(models.Model):
             models.Index(fields=['category', 'indicator', 'geo_area', 'time_period']),
         ]
 
+
 class GDPTableData(models.Model):
     unit = models.CharField(max_length=50, default='Million euro')
-    geo_area = models.CharField(max_length=100)
-    year_2015 = models.DecimalField(max_digits=15, decimal_places=2, null=True)
-    year_2016 = models.DecimalField(max_digits=15, decimal_places=2, null=True)
-    year_2017 = models.DecimalField(max_digits=15, decimal_places=2, null=True)
-    year_2018 = models.DecimalField(max_digits=15, decimal_places=2, null=True)
+    geo_area = models.CharField(max_length=500)
     year_2019 = models.DecimalField(max_digits=15, decimal_places=2, null=True)
     year_2020 = models.DecimalField(max_digits=15, decimal_places=2, null=True)
     year_2021 = models.DecimalField(max_digits=15, decimal_places=2, null=True)
