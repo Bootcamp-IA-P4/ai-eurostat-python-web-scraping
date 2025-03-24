@@ -1,122 +1,228 @@
-🌐 Py-Web-Scraping-03
 
-<img alt="GPLv3 License" src="https://img.shields.io/badge/License-GPLv3-blue.svg">
+# 🌐 Django Eurostat Web-Scraping
 
-<img alt="Python Version" src="https://img.shields.io/badge/Python->=3.13-blue">
+![GPLv3 License](https://img.shields.io/badge/License-GPLv3-blue.svg)
+![Python Version](https://img.shields.io/badge/Python->=3.13-blue)
+![Selenium Version](https://img.shields.io/badge/Selenium->=4.29.0-green)
+![Django Version](https://img.shields.io/badge/Django->=5.1.7-darkgreen)
+![UV](https://img.shields.io/badge/UV-1.0+-lightgrey)
 
-<img alt="Selenium Version" src="https://img.shields.io/badge/Selenium->=4.29.0-green">
+## 📖 Descripción del Proyecto
 
-<img alt="Django Version" src="https://img.shields.io/badge/Django->=5.1.7-darkgreen">
-📖 Descripción del Proyecto
-Py-Web-Scraping-03 es un proyecto diseñado para realizar scraping de datos desde la web de Eurostat, una plataforma que proporciona estadísticas y datos económicos de la Unión Europea. Este proyecto utiliza herramientas avanzadas como Selenium, BeautifulSoup, y Pandas para automatizar la extracción, procesamiento y análisis de datos. Además, los datos extraídos pueden ser exportados a formatos como Excel para su posterior análisis.
+Py-Web-Scraping-03 es un sistema avanzado para extracción automatizada de datos estadísticos de [Eurostat](https://ec.europa.eu/eurostat), con capacidades de:
 
-El proyecto también incluye una integración con Django, lo que permite gestionar los datos extraídos a través de una interfaz web.
+- **Web scraping** de tablas dinámicas con JavaScript
+- **Procesamiento ETL** (Extracción, Transformación, Carga)
+- **Visualización** mediante interfaz web Django
+- **Exportación** a múltiples formatos (Excel, CSV, JSON)
 
-🚀 Características Principales
-Automatización del scraping: Uso de Selenium para interactuar con tablas dinámicas y contenido renderizado por JavaScript.
-Procesamiento de datos: Limpieza y análisis de datos con Pandas.
-Exportación: Generación de archivos Excel con los datos extraídos utilizando OpenPyXL.
-Interfaz web: Gestión de los datos extraídos a través de un backend basado en Django.
-Compatibilidad: Diseñado para Python 3.13 o superior.
+🔍 **Tecnologías clave implementadas**:
+```python
+# Stack tecnológico completo
+tech_stack = {
+    "scraping": ["Selenium", "BeautifulSoup", "Pandas"],
+    "backend": ["Django"],
+    "data": ["Pandas", "OpenPyXL", "NumPy"],
+    "tools": ["UV", "WebDriver Manager"],
+}
+```
 
+## 🚀 Características Principales
+
+### 🔧 **Módulo de Scraping Avanzado**
+```python
+from selenium.webdriver import ChromeOptions
+from bs4 import BeautifulSoup
+
+# Configuración profesional discutida
+options = ChromeOptions()
+options.add_argument("--headless=new")  # Modo sin interfaz gráfica
+options.add_argument("--disable-blink-features=AutomationControlled")
+```
+
+### 📊 **Procesamiento de Datos**
+- Limpieza automática de valores especiales (`(b)`, `(e)`, `(p)`)
+- Normalización de formatos numéricos europeos (`1.234,56` → `1234.56`)
+- Identificación automática de metadatos (EU vs Eurozone)
+
+### 🌐 **Interfaz Django**
+```bash
+# Estructura MVC implementada
+django-admin startproject eurostat_scraper
+├── core/
+│   ├── models.py       # Modelos GeoArea y GDPData
+│   ├── admin.py        # Configuración avanzada del Admin
+│   └── management/     # Comandos personalizados
+```
+
+---
+
+## 🛠️ Requisitos Previos
+
+| Componente       | Versión Mínima | Notas                          |
+|------------------|----------------|--------------------------------|
+| Python           | 3.13+          | Requiere soporte para type hints |
+| Chrome/Firefox   | Latest         | Para ejecución del navegador    |
+| UV               | 1.0+           | Alternativa moderna a pip       |
+
+---
+
+## ⚙️ Instalación
+
+### Linux/macOS (Recomendado con UV)
+```bash
+# 1. Crear entorno virtual
+python -m venv .venv && source .venv/bin/activate
+
+# 2. Instalar UV (si no está instalado)
+pip install uv
+
+# 3. Instalar dependencias (desde pyproject.toml)
+uv pip install -e .
+
+# 4. Verificar
+uv pip list
+```
+
+### Windows (PowerShell)
+```powershell
+# 1. Entorno virtual
+py -m venv .venv; .venv\Scripts\activate
+
+# 2. Instalar con UV
+pip install uv
+uv pip sync
+```
+
+### 🧪 Modo Desarrollo
+```bash
+# Instalar dependencias + herramientas de testing
+uv pip install -e ".[dev]"
+
+# Ejecutar tests (como discutimos)
+pytest scraper/tests/ -v
+```
+
+---
+
+## 🏗️ Estructura del Proyecto
+
+```bash
 py-web-scraping-03/
 ├── scraper/
-│   ├── eurostat_scraper.py       # Código principal para el scraping
-│   ├── utils.py                  # Funciones auxiliares
-│   └── tests/                    # Pruebas unitarias
-├── manage.py                     # Script de Django para gestionar el proyecto
-├── requirements.txt              # Dependencias del proyecto
-├── pyproject.toml                # Configuración del proyecto
-├── README.md                     # Documentación del proyecto
-├── screenshots/                  # Capturas de pantalla generadas durante el scraping
-└── logs/                         # Archivos de log para depuración
+│   ├── eurostat_scraper.py       # Lógica principal de scraping
+│   ├── utils.py                  # Funciones de limpieza de datos
+│   └── tests/                    # Pruebas con mocks de Selenium
+├── config/
+│   ├── settings.py               # Django settings modularizados
+│   └── asgi.py                   
+├── logs/                         # Logs automatizados (RotatingFileHandler)
+└── screenshots/                  # Capturas de fallos (como vimos)
+```
 
+---
 
+## 💡 Uso Avanzado
 
-🛠️ Requisitos Previos
-Antes de comenzar, asegúrate de tener instalados los siguientes componentes:
+### Ejemplo de Scraping con Retries
+```python
+from scraper.eurostat_scraper import EurostatScraper
 
-Python 3.13 o superior
-Google Chrome (o Firefox si usas Geckodriver)
-ChromeDriver o GeckoDriver (administrado automáticamente por webdriver-manager)
+with EurostatScraper(headless=True) as scraper:
+    data = scraper.extract_complete_gdp_data()
+    scraper.export_to_excel(data, "eurostat_data.xlsx")
+```
 
-🛠️ Instalación en Linux/MacOS
-Opción 1: Usando pip
+### Comandos Django Personalizados
+```bash
+python manage.py import_eurostat_data \
+    --years 2020-2023 \
+    --countries "ES,FR,DE"
+```
 
-1.Crear un entorno virtual:
-python3 -m venv venv
-source venv/bin/activate
+---
 
-2.Instalar las dependencias:
-pip install -r requirements.txt
+## 📌 Mejoras Implementadas:
 
-3.Verificar la instalación:
-python --version
-pip list
+1. **Manejo profesional de tablas dinámicas**:
+   - Scroll horizontal automatizado
+   - Detección de datos lazy-loaded
 
-----
-Opción 2: Usando uv (alias de pipenv)
+2. **Sistema de logging mejorado**:
+   ```python
+   # Configuración que desarrollamos
+   logger.addHandler(RotatingFileHandler(
+       "logs/scraper.log", 
+       maxBytes=5*1024*1024, 
+       backupCount=3
+   ))
+   ```
 
-1.Instalar pipenv (si no lo tienes instalado):
-pip install pipenv
+3. **Configuración avanzada de Selenium**:
+   - Desactivación de imágenes para mejor rendimiento
+   - Timeouts configurables por selector
 
-2.Crear el entorno virtual e instalar dependencias:
-uv install
+---
 
-3.Sincronizar dependencias:
-uv sync
+## 📄 Licencia
 
-4.Activar el entorno virtual:
-uv shell
+Este proyecto está bajo licencia [GPLv3](https://www.gnu.org/licenses/gpl-3.0.html). Consulte el archivo `LICENSE` para más detalles.
 
-5.Verificar la instalación:
-python --version
-uv graph
+---
 
-----
+> 💡 **Tip**: usa `uv pip compile --upgrade` para actualizar dependencias de forma segura y `uv pip sync` para replicar entornos exactos.
 
-🛠️ Instalación en Windows
+---
 
-Opción 1: Usando pip
+# Web Scraping Project - Eurostat GDP Data
 
-1.Crear un entorno virtual:
-python -m venv venv
-venv\Scripts\activate
+Este proyecto consiste en extraer datos de GDP (Producto Interior Bruto) de Eurostat mediante técnicas de web scraping.
 
-2.Instalar las dependencias:
-pip install -r requirements.txt
+## Capturas del Proceso
 
-3.Verificar la instalación:
-python --version
-pip list
+### 1. Configuración Inicial del Proyecto
+![Configuración Inicial](Captura_desde_2025-03-18_12-56-27.png)  
+*Figura 1: Establecimiento de tareas iniciales y milestones en el tablero de proyecto*
 
-----
+### 2. Investigación de Tecnologías
+![Investigación Tecnologías](Captura_desde_2025-03-18_13-01-37.png)  
+*Figura 2: Búsqueda de tecnologías adecuadas para web scraping (BeautifulSoup, Scrapy, Selenium)*
 
-Opción 2: Usando uv (alias de pipenv)
+### 3. Estructura de Ramas Git
+![Ramas Git](Captura_desde_2025-03-18_18-47-25.png)  
+*Figura 3: Estructura de ramas con `main`, `develop` y `feature/` para desarrollo*
 
-1.Instalar pipenv (si no lo tienes instalado):
-pip install pipenv
+### 4. Progreso del Desarrollo
+![Progreso](./docs/images/Captura_desde_2025-03-19_18-28-37.png)  
+*Figura 4: Estado actual de las tareas en el sprint (2/5 completadas)*
 
-2.Crear el entorno virtual e instalar dependencias:
-uv install
+### 5. Estructura de Datos Eurostat
+![Estructura Eurostat](./docs/images/Captura_desde_2025-03-19_20-28-53.png)  
+*Figura 5: Jerarquía de datasets de GDP en Eurostat (ESA 2010 framework)*
 
-3.Sincronizar dependencias:
-uv sync
+### 6. Vista de Tabla de Datos
+![Tabla Datos](./docs/images/Captura_desde_2025-03-19_20-59-39.png)  
+*Figura 6: Vista preliminar de los datos GDP por país/región*
 
-4.Activar el entorno virtual:
-uv shell
+### 7. Datos Numéricos Detallados
+![Datos Numéricos](./docs/images/Captura_desde_2025-03-19_20-59-53.png)  
+*Figura 7: Valores específicos de GDP con flags de calidad de datos*
 
-5.Verificar la instalación:
-python --version
-uv graph
+### 8. Tabla Completa de Resultados
+![Tabla Completa](./docs/images/Captura_desde_2025-03-19_21-00-04.png)  
+*Figura 8: Dataset final con valores GDP (en millones) y metadatos*
 
-----
+## Notas Técnicas
 
-⚠️ Nota Importante
+1. **Flags de Datos**:  
+   - `(b)`: Break in time series (cambio metodológico)  
+   - `(p)`: Provisional (datos preliminares)  
+   - `(e)`: Estimated (estimación)  
+   - `:`: Not available (no disponible)
 
-- uv install: Instala las dependencias especificadas en pyproject.toml y genera un archivo Pipfile.lock.
-
-- uv sync: Asegura que las dependencias instaladas en el entorno virtual coincidan exactamente con las especificadas en el archivo Pipfile.lock.
-
-- No ejecutes ambos métodos (pip y uv) al mismo tiempo. Elige uno de los dos.
+2. **Estructura de Datos**:  
+   Los datos siguen el estándar ESA 2010 de cuentas nacionales, con desglose por:
+   - Componentes principales (output, expenditure, income)
+   - Industrias (NACE Rev.2)
+   - Áreas geográficas (EU, Euro area, países individuales)
 
