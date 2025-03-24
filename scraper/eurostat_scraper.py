@@ -15,39 +15,44 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 import csv
 from django.db import transaction
-from .models import GDPTableData # Importar el modelo de Django
+from .models import GeoArea, GDPData
 
 
-# Configurar la carpeta de logs
+# Configure logs directory
 log_dir = "logs"
-os.makedirs(log_dir, exist_ok=True)  # Crear la carpeta si no existe
+os.makedirs(log_dir, exist_ok=True)  # Create directory if it doesn't exist
 
-# Configurar logging para consola y archivo con rotación
-log_file = os.path.join(log_dir, "scraper.log")  # Archivo de log en la carpeta logs
+# Configure logging for both console and rotating file
+log_file = os.path.join(log_dir, "scraper.log")  # Log file in logs directory
 
-# Crear el logger
+# Create logger
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # Nivel global de logging
+logger.setLevel(logging.DEBUG)  # Global logging level
 
-# Formato de los logs
+# Log format
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-# Handler para el archivo con rotación
-file_handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3)  # 5 MB por archivo, 3 copias de respaldo
-file_handler.setLevel(logging.DEBUG)  # Nivel de logging para el archivo
+# File handler with rotation
+file_handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3)  # 5 MB per file, 3 backups
+file_handler.setLevel(logging.DEBUG)  # Logging level for file
 file_handler.setFormatter(formatter)
 
-# Handler para la consola
+# Console handler
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)  # Nivel de logging para la consola
+console_handler.setLevel(logging.INFO)  # Logging level for console
 console_handler.setFormatter(formatter)
 
-# Agregar los handlers al logger
+# Add handlers to logger
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
 class EurostatScraper:
     def __init__(self, headless=True):
+        """
+        Initialize the scraper with default settings.
+        Args:
+            headless (bool): Whether to run browser in headless mode
+        """
         self.base_url = "https://ec.europa.eu/eurostat/databrowser/view/nama_10_gdp/default/table?lang=en&category=na10.nama10.nama_10_ma"
         self.driver = None
         self.headless = headless
@@ -56,436 +61,369 @@ class EurostatScraper:
         self.wait = None
 
     def __enter__(self):
-        """Inicializa el driver al entrar en el contexto."""
+        """Initialize driver when entering context"""
         self.setup_driver()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        """Cierra el driver al salir del contexto."""
+        """Clean up driver when exiting context"""
         if self.driver:
             self.driver.quit()
-            logger.info("Driver cerrado.")
+            logger.info("Driver closed.")
 
     def setup_driver(self):
-        """Configura el driver de Selenium."""
-        logger.info("Configurando el driver de Selenium...")
+        """Configure Selenium WebDriver with Chrome options"""
+        logger.info("Setting up Selenium driver...")
         try:
             chrome_options = Options()
             if self.headless:
-                logger.info("Modo headless activado")
+                logger.info("Headless mode enabled")
                 chrome_options.add_argument("--headless=new")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--window-size=1920,1080")
             chrome_options.add_argument("--disable-notifications")
-            chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # Desactivar el mensaje
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # Disable automation warning
             
-            # Desactivar la carga de imágenes para mejorar el rendimiento
+            # Disable image loading for better performance
             chrome_options.add_experimental_option("prefs", {
                 "profile.managed_default_content_settings.images": 2,
                 "profile.default_content_setting_values.notifications": 2
             })
             
-            # Agregar verificación de conectividad antes de intentar instalar el driver
-            logger.info("Intentando instalar el ChromeDriver...")
+            # Verify connectivity before installing driver
+            logger.info("Attempting to install ChromeDriver...")
             chrome_driver_path = ChromeDriverManager().install()
-            logger.info(f"ChromeDriver instalado en: {chrome_driver_path}")
+            logger.info(f"ChromeDriver installed at: {chrome_driver_path}")
             
-            # Configurar el servicio de ChromeDriver para guardar el log en la carpeta logs
+            # Configure ChromeDriver service to save logs in logs directory
             service = Service(chrome_driver_path)
-            service.log_path = os.path.join("logs", "webdriver.log")  # Guardar el log en la carpeta logs
+            service.log_path = os.path.join("logs", "webdriver.log")
             
-            # Inicializar el driver y establecer el timeout
-            logger.info("Inicializando el driver de Chrome...")
+            # Initialize driver with timeout settings
+            logger.info("Initializing Chrome driver...")
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
             if self.driver:
-                logger.info("Driver de Chrome inicializado correctamente")
+                logger.info("Chrome driver initialized successfully")
                 self.driver.set_page_load_timeout(60)
                 self.wait = WebDriverWait(self.driver, 30)
             else:
-                logger.error("No se pudo inicializar el driver de Chrome")
-                raise Exception("No se pudo inicializar el driver de Chrome")
+                logger.error("Failed to initialize Chrome driver")
+                raise Exception("Failed to initialize Chrome driver")
                 
         except Exception as e:
-            logger.error(f"Error al configurar el driver: {e}")
+            logger.error(f"Error configuring driver: {e}")
             raise
 
-    def scroll_to_element(self, element):
-        """Scroll hasta que el elemento esté visible."""
+    def _scroll_to_element(self, element):
+        """
+        Scroll until element is visible in viewport
+        Args:
+            element: WebElement to scroll to
+        """
         if not self.driver:
-            logger.error("Driver no inicializado. No se puede hacer scroll.")
-            return
-            
+            logger.error("Driver not initialized. Cannot scroll.")
+            return            
         try:
             self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
-            logger.info("Scroll hasta el elemento completado.")
-            time.sleep(2)  # Esperar a que la página se estabilice después del scroll
+            logger.info("Scrolled to element.")
+            time.sleep(2)  # Wait for page to stabilize after scrolling
         except Exception as e:
-            logger.error(f"Error al hacer scroll hasta el elemento: {e}")
-
-    def scroll_down_page(self, pixels=500):
-        """Scroll hacia abajo una cantidad específica de píxeles."""
-        if not self.driver:
-            logger.error("Driver no inicializado. No se puede hacer scroll.")
-            return
-            
-        try:
-            self.driver.execute_script(f"window.scrollBy(0, {pixels});")
-            logger.info(f"Scroll hacia abajo {pixels}px completado.")
-            time.sleep(1)  # Pequeña pausa para que la página responda
-        except Exception as e:
-            logger.error(f"Error al hacer scroll hacia abajo: {e}")
-
-    def scroll_to_bottom(self):
-        """Scroll hasta el final de la página."""
-        if not self.driver:
-            logger.error("Driver no inicializado. No se puede hacer scroll.")
-            return
-            
-        try:
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            logger.info("Scroll hasta el final de la página completado.")
-            time.sleep(2)  # Esperar a que la página se estabilice
-        except Exception as e:
-            logger.error(f"Error al hacer scroll hasta el final: {e}")
+            logger.error(f"Error scrolling to element: {e}")
 
     def accept_cookies(self):
-        """Acepta las cookies si el banner está presente."""
+        """Accept cookies if banner is present"""
         try:
-            logger.info("Buscando el botón de aceptar cookies...")
+            logger.info("Looking for cookie accept button...")
             accept_cookies_button = self.wait.until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, "a.wt-ecl-button:nth-child(1)"))
-            )
+                EC.element_to_be_clickable((By.CSS_SELECTOR, "a.wt-ecl-button:nth-child(1)")))
             accept_cookies_button.click()
-            logger.info("Cookies aceptadas.")
+            logger.info("Cookies accepted.")
             self.capture_screenshot("cookies_accepted")
         except TimeoutException:
-            logger.warning("No se encontró el botón de aceptar cookies. Continuando sin aceptar cookies.")
+            logger.warning("Cookie accept button not found. Continuing without accepting cookies.")
         except Exception as e:
             self.capture_screenshot("cookies_error")
-            logger.error(f"Error al intentar aceptar cookies: {e}")
+            logger.error(f"Error accepting cookies: {e}")
 
     def wait_for_table_to_load(self):
-        """Espera a que la tabla esté completamente cargada y sea clickeable."""
+        """Wait for table to be fully loaded and clickable"""
         try:
-            logger.info("Esperando a que la tabla esté completamente cargada...")
-            
-            # Capturar una captura de pantalla antes de esperar la tabla
-            self.capture_screenshot("before_wait_for_table")
-            
-            # Esperar a que la tabla esté presente usando el id
-            self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#estat-content-view-table")))
-            
-            # Esperar a que la tabla sea clickeable
-            self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#estat-content-view-table")))
-            
-            logger.info("Tabla completamente cargada y clickeable.")
-            
-            # Capturar una captura de pantalla después de esperar la tabla
+            logger.info("Waiting for table to fully load...")            
+            # Take screenshot before waiting for table
+            self.capture_screenshot("before_wait_for_table")            
+            # Wait for table to be present using ID
+            self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#estat-content-view-table")))            
+            # Wait for table to be clickable
+            self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#estat-content-view-table")))            
+            logger.info("Table fully loaded and clickable.")            
+            # Take screenshot after table loads
             self.capture_screenshot("after_wait_for_table")
-
         except TimeoutException as e:
-            logger.error(f"Timeout al esperar la carga de la tabla: {e}")
+            logger.error(f"Timeout waiting for table to load: {e}")
             self.capture_screenshot("timeout_error")
             raise
         except Exception as e:
-            logger.error(f"Error al esperar la carga de la tabla: {e}")
+            logger.error(f"Error waiting for table to load: {e}")
             self.capture_screenshot("wait_for_table_error")
             raise
-        
+
+    def _scroll_horizontal_to_middle(self, scrollable_div):
+        """
+        Scroll horizontally to middle of table
+        Args:
+            scrollable_div: The scrollable container element
+        """
+        logger.info("Scrolling horizontally to middle...")
+        scroll_width = self.driver.execute_script("return arguments[0].scrollWidth", scrollable_div)
+        self.driver.execute_script(f"arguments[0].scrollLeft = {scroll_width // 3};", scrollable_div)
+        time.sleep(5)
+        logger.info("Horizontal scroll to middle completed")
+
+    def _scroll_horizontal_to_start(self, scrollable_div):
+        """
+        Scroll horizontally to start (leftmost)
+        Args:
+            scrollable_div: The scrollable container element
+        """
+        logger.info("Scrolling horizontally to start...")
+        self.driver.execute_script("arguments[0].scrollLeft = 0;", scrollable_div)
+        time.sleep(5)
+        logger.info("Horizontal scroll to start completed")
+
+    def _extract_visible_years(self):
+        """Extract currently visible year headers from table"""
+        year_headers = self.driver.find_elements(By.CSS_SELECTOR, ".ag-header-group-cell .table-header-text")
+        return [header.text.strip() for header in year_headers if header.text.strip().isdigit()]
+
+    def _process_years(self, *year_lists):
+        """
+        Combine and sort year lists
+        Args:
+            *year_lists: Variable number of year lists to process
+        Returns:
+            list: Sorted list of unique years
+        """
+        all_years = list(set(year for sublist in year_lists for year in sublist))  # Flatten and remove duplicates
+        all_years.sort()
+        logger.info(f"All extracted years: {all_years}")
+        return all_years
+
+    def _extract_geo_titles(self):
+        """Extract GEO titles from left column of table"""
+        parent_div = self.driver.find_element(By.CSS_SELECTOR, 'div.ag-pinned-left-cols-container')
+        title_elements = parent_div.find_elements(
+            By.CSS_SELECTOR, 
+            'span.colHeader.header-overflow.table-header-container[title]'
+        )
+        titles = [element.get_attribute('title') for element in title_elements]
+        logger.info(f"Found {len(titles)} titles:")
+        return titles
+
     def extract_table_data(self):
-        """Extrae los datos de la tabla de la página con reintentos."""
+        """Main method to extract table data with retry logic"""
         if not self.driver:
-            logger.error("Driver no inicializado. No se pueden extraer datos.")
-            return None, None, None  # Devuelve None para encabezados y datos
+            logger.error("Driver not initialized. Cannot extract data.")
+            return None
         try:
-            logger.info("Iniciando extracción de datos de la tabla...")
+            logger.info("Starting table data extraction...")
             self.driver.get(self.base_url)
-            logger.info("Página cargada correctamente.")
-            # Aceptar cookies (si está presente)
+            logger.info("Page loaded successfully.")            
             self.accept_cookies()
-            # Esperar a que la tabla esté completamente cargada y sea clickeable
             self.wait_for_table_to_load()
-            # Hacer scroll hasta la tabla
-            logger.info("Haciendo scroll hasta la tabla...")
+            
+            # Scroll to table
+            logger.info("Scrolling to table...")
             table_element = self.driver.find_element(By.CSS_SELECTOR, "#estat-content-view-table")
-            self.scroll_to_element(table_element)
+            self._scroll_to_element(table_element)
             
-
-            # Esperar un momento para que se carguen los datos después del scroll vertical
-            time.sleep(5)
-            # Extrae los años visiles(2021, 2022, 2023 y 2024)        
-            logger.info("Extrayendo headers de los años visibles...")
-            year_headers = self.driver.find_elements(By.CSS_SELECTOR, ".ag-header-group-cell .table-header-text")
-            # Clenaing the years
-            years = [header.text.strip() for header in year_headers if header.text.strip().isdigit()]
-            logger.info(f"Primeros años visibles extraídos: {years}")
-            print("TEST **First-Years**: ", years)
-            
-
-            # Hacer scroll horizontal hasta la mitad para capturar el año 2019
-            logger.info("Haciendo scroll horizontal hasta la mitad...")
+            # Perform full horizontal scroll once to load all data
             scrollable_div = self.driver.find_element(By.CSS_SELECTOR, ".ag-body-horizontal-scroll-viewport")
             scroll_width = self.driver.execute_script("return arguments[0].scrollWidth", scrollable_div)
-            self.driver.execute_script(f"arguments[0].scrollLeft = {scroll_width // 3};", scrollable_div)
-            logger.info("Scroll horizontal hasta la mitad realizado correctamente.")
+            self.driver.execute_script(f"arguments[0].scrollLeft = {scroll_width};", scrollable_div)
+            time.sleep(2)
             
-            
-            # Esperar un momento para que se carguen los datos después del scroll a la mitad
-            time.sleep(5)
-            # Extraer los TIME headers del scroll en el medio(años adicionales)
-            logger.info("Extrayendo headers de los años adicionales (hasta la mitad)...")
-            additional_year_headers = self.driver.find_elements(By.CSS_SELECTOR, ".ag-header-group-cell .table-header-text")
-            additional_years = [header.text.strip() for header in additional_year_headers if header.text.strip().isdigit()]
-            logger.info(f"Segundos años extraídos (hasta la mitad): {additional_years}")
-            # Test:
-            print("TEST **Second-Years**: ", additional_years)
-            
-
-            # Hacer scroll horizontal completo hacia la izquierda
-            logger.info("Haciendo scroll horizontal completo hacia la izquierda...")
+            # Return to start
             self.driver.execute_script("arguments[0].scrollLeft = 0;", scrollable_div)
-            logger.info("Scroll horizontal completo hacia la izquierda realizado correctamente.")
+            time.sleep(2)
 
+            # Extract years (should all be visible now)
+            all_years = self._extract_visible_years()
+            print("\nTEST **All-Years**: ", all_years, "\n")
 
-            # Esperar un momento para que se carguen los datos después del scroll completo
-            time.sleep(5)
-            # Extraer los headers de los años restantes               
-            logger.info("Extrayendo headers de los años restantes...")
-            remaining_year_headers = self.driver.find_elements(By.CSS_SELECTOR, ".ag-header-group-cell .table-header-text")
-            remaining_years = [header.text.strip() for header in remaining_year_headers if header.text.strip().isdigit()]
-            logger.info(f"Terceros años extraídos: {remaining_years}")
+            # Extract GEO titles
+            geo_titles = self._extract_geo_titles()
+            print("\nTEST **Geo-Titles**: ", geo_titles, "\n")
+            geo_titles_dicc_list = self._process_gdp_data(geo_titles)
+            print("\nTEST **Geo-Titles-Dicc-List**: ", geo_titles_dicc_list, "\n")
 
-            # Final TIME headers 
-            # Combinar y ordenar los años de menor a mayor
-            all_years = list(set(years + additional_years + remaining_years))  # Eliminar duplicados
-            all_years.sort()  # Ordenar de menor a mayor
-            logger.info(f"Todos los años extraídos: {all_years}")
-            # Test:
-            print("TEST **All-Years**: ", all_years)
+            return geo_titles_dicc_list
+        except Exception as e:
+            logger.error(f"Error extracting table data: {e}", exc_info=True)
+            return None
 
-            # Extracción de las cabeceras GEO
-            # Localizar el div padre
-            parent_div = self.driver.find_element(By.CSS_SELECTOR, 'div.ag-pinned-left-cols-container')         
-            # Extraer todos los elementos span con los titles
-            title_elements = parent_div.find_elements(
+    def extract_complete_gdp_data(self):
+        """
+        Extract all GDP data with horizontal scrolling
+        Returns:
+            dict: Dictionary with row IDs as keys and GDP data as values
+        """
+        gdp_data = {}
+        counter = 0
+        try:
+            # Perform full horizontal scroll once to load all data
+            scroll_container = self.driver.find_element(
                 By.CSS_SELECTOR, 
-                'span.colHeader.header-overflow.table-header-container[title]'
+                ".ag-body-horizontal-scroll-viewport"
             )
-            geo_titles = [element.get_attribute('title') for element in title_elements]
-            logger.info(f"Se encontraron {len(geo_titles)} titles:")
-            # Test: 
-            print("TEST **Geo-Titles**: ", geo_titles)
-        except Exception as e:
-            logger.error(f"Error al extraer datos de la tabla: {str(e)}", exc_info=True)
-
-
-            # TODO: delete GEO and TIME headers extracting
-            # Extraer las cabeceras de la tabla (GEO y TIME)
-            headers = self.driver.find_elements(By.CSS_SELECTOR, ".table-header-text")
-            header_data = [header.text.strip() for header in headers if header.text.strip()]
-            logger.info(f"Encabezados extraídos: {header_data}")
-            # Extraer los datos de la tabla
-            rows = self.driver.find_elements(By.CSS_SELECTOR, ".ag-row")
-            data = []
-            for row in rows:
-                cells = row.find_elements(By.CSS_SELECTOR, ".ag-cell")
-                row_data = [cell.text.strip() if cell.text.strip() else "" for cell in cells]  # Rellenar celdas en blanco
-                data.append(row_data)
-            logger.info(f"Se extrajeron {len(data)} filas de la tabla.")
-
-            # TODO: delete next line
-            filtered_years = [year for year in header_data if year.isdigit()]
+            scroll_width = self.driver.execute_script(
+                "return arguments[0].scrollWidth", 
+                scroll_container
+            )
+            self.driver.execute_script(
+                f"arguments[0].scrollLeft = {scroll_width};", 
+                scroll_container
+            )
+            time.sleep(2)
             
-            return header_data, data, filtered_years # Devuelve encabezados y datos por separado
+            # Return to start
+            self.driver.execute_script("arguments[0].scrollLeft = 0;", scroll_container)
+            time.sleep(2)
 
+            # Get all rows
+            rows = self.driver.find_elements(By.CSS_SELECTOR, "div[role='row'][row-id]")            
+            print("TEST **Rows**: ", len(rows))
+            
+            for row in rows:
+                row_id = row.get_attribute('row-id')
+                row_data = self.extract_row_data(row)  # Simplified method
+                if row_data:  # Only add if data exists
+                    gdp_data[row_id] = row_data
+                    print("TEST **Row-Data**: ", row_data)
+                    print(counter)
+                    counter += 1              
+            return gdp_data            
         except Exception as e:
-            logger.error(f"Error al extraer datos de la tabla: {e}", exc_info=True)
-            return None, None
-        
+            logger.error(f"Error extracting complete GDP data: {str(e)}", exc_info=True)
+            return {}
 
-    
-
-    def create_multiindex_dataframe(self, pib_values, geo_index, time_index):
+    def extract_row_data(self, row):
         """
-        Crea un DataFrame multiindex a partir de listas de valores de PIB, índices GEO y TIME.
-
-        :param pib_values: Lista de listas con los valores de PIB.
-        :param geo_index: Lista de índices GEO.
-        :param time_index: Lista de índices TIME.
-        :return: DataFrame multiindex con GEO y TIME como índices.
+        Extract data from single row without additional scrolling
+        Args:
+            row: WebElement representing a table row
+        Returns:
+            dict: Processed row data or None if empty
         """
-        # Verificar que las longitudes sean consistentes
-        if len(pib_values) != len(geo_index):
-            raise ValueError(f"La longitud de pib_values ({len(pib_values)}) no coincide con la longitud de geo_index ({len(geo_index)}).")
+        row_data = {}
+        try:
+            cells = row.find_elements(By.CSS_SELECTOR, "div[role='gridcell'][col-id]")
+            for cell in cells:
+                year = cell.get_attribute('col-id')
+                if year and year.isdigit():
+                    value_info = self.process_cell(cell)
+                    if value_info['is_available']:  # Only add if data is available
+                        row_data[year] = value_info
+            return row_data if row_data else None  # Return None if no data
+        except Exception as e:
+            logger.warning(f"Error processing row: {str(e)}")
+            return None
 
-        for i, row in enumerate(pib_values):
-            if len(row) != len(time_index):
-                raise ValueError(f"La fila {i} de pib_values tiene {len(row)} elementos, pero se esperaban {len(time_index)} (según time_index).")
-
-        # Crear un MultiIndex para las filas (GEO y TIME)
-        multiindex = pd.MultiIndex.from_product(
-            [geo_index, time_index], names=["GEO", "TIME"]
-        )
-
-        # Aplanar la lista de listas de valores de PIB
-        flat_pib_values = [item for sublist in pib_values for item in sublist]
-
-        # Crear el DataFrame
-        df = pd.DataFrame(flat_pib_values, index=multiindex, columns=["PIB"])
-
-        # Reorganizar el DataFrame para que TIME sea el segundo nivel de las columnas
-        df = df.unstack(level="TIME")
-
-        # Mostrar el DataFrame
-        print(df)
-
-        return df
-    
-    def clean_data(self, data):
-        cleaned_data = []
-        for row in data:
-            #Si la fila contiene valores numéricos, es una fila de datos
-            if any(cell.replace(".", "").replace(" ", "").isdigit() for cell in row):
-                cleaned_data.append(row)
-        return cleaned_data
-    
-    def get_countries_regions(self, headers):
-        return [h for h in headers if not h.isdigit() and h not in ["TIME", "GEO"]]
-
-    def save_to_csv(self, headers, data, years, filename="output.csv"):
+    def process_cell(self, cell):
         """
-        Guarda los datos en un CSV y en la base de datos.
-        
-        :param headers: Lista de cabeceras (TIME, GEO, años, países/regiones).
-        :param data: Lista de listas con los datos de la tabla.
-        :param years: Lista de años.
-        :param filename: Nombre del archivo CSV.
+        Process individual cell and return normalized data
+        Args:
+            cell: WebElement representing a table cell
+        Returns:
+            dict: Normalized cell data with value, flag and availability
         """
         try:
-            # Extraer años y países/regiones dinámicamente
-            # years = [h for h in headers if h.isdigit()]  # Años (elementos que son números)
-            countries_regions =   self.get_countries_regions(headers) # Países/Regiones (elementos que no son números)
-            #print("TEST**countries_regions: ", countries_regions)
-            # Filtrar los datos para eliminar cabeceras y quedarnos solo con los valores
-            cleaned_data = self.clean_data(data)
-
-            # Depuración: Imprimir años, países/regiones y datos limpios
-            print("Años:", years)
-            #print("Países/Regiones:", countries_regions)
-            print("Datos limpios:", cleaned_data)
-            print("Número de filas limpias:", len(cleaned_data))
-
-            # Verificar que countries_regions y clean_data tengan la misma longitud
-            if len(countries_regions) != len(cleaned_data):
-                logger.error(f"Error: countries_regions y clean_data no tienen la misma longitud.")
-                logger.error(f"Países/Regiones: {len(countries_regions)}, Datos limpios: {len(cleaned_data)}")
-                return
-
-            # Crear la carpeta "data" si no existe
-            os.makedirs("data", exist_ok=True)
-
-            # Generar el nombre del archivo con fecha y hora
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"data/gdp_data_{timestamp}.csv"
-
-            # Abrir el archivo CSV en modo escritura
-            with open(filename, mode='w', newline='', encoding='utf-8') as file:
-                writer = csv.writer(file)
-
-                # Escribir la primera fila (TIME y años)
-                time_row = ["TIME"] + years  # TIME + años
-                writer.writerow(time_row)
-
-                # Escribir la segunda fila (GEO y celdas vacías)
-                geo_row = ["GEO"] + [""] * len(years)  # GEO + celdas vacías
-                writer.writerow(geo_row)
-
-                # Escribir los datos (países/regiones y valores)
-                for i, row in enumerate(cleaned_data):
-                    # Cada fila de datos comienza con el país/región y luego los valores
-                    country_region = countries_regions[i]  # El país/región correspondiente
-                    writer.writerow([country_region] + row)
-
-            logger.info(f"Datos guardados en el archivo CSV: {filename}")
-
-            # Guardar los datos en la base de datos
-            self.save_to_db(countries_regions, cleaned_data, years)
-
+            value_element = cell.find_element(
+                By.CSS_SELECTOR, 
+                "span.table-cell.cell-value > span:first-child"
+            )
+            raw_value = value_element.text.strip()            
+            return self.parse_special_value(raw_value)
         except Exception as e:
-            logger.error(f"Error al guardar los datos en CSV o base de datos: {e}", exc_info=True)
+            logger.warning(f"Error processing cell: {str(e)}")
+            return {'value': None, 'flag': None, 'is_available': False}
 
-    def save_to_db(self, countries_regions, clean_data, years):
+    def parse_special_value(self, raw_value):
         """
-        Guarda los datos en la base de datos.
+        Parse special values in cell data
+        Args:
+            raw_value (str): Raw text from cell
+        Returns:
+            dict: Processed value with flags and availability
+        """
+        if not raw_value or raw_value == ":":
+            return {'value': None, 'flag': None, 'is_available': False}        
+        flag = None
+        value = raw_value
         
-        :param countries_regions: Lista de países/regiones.
-        :param clean_data: Lista de listas con los datos de la tabla.
-        :param years: Lista de años.
+        # Check for special flags like (b), (p), (e)
+        for special_flag in ['(b)', '(p)', '(e)']:
+            if special_flag in raw_value:
+                flag = special_flag[1]  # Get single letter flag
+                value = raw_value.replace(special_flag, '')
+                break        
+        clean_value = value.strip()
+        if any(c.isdigit() for c in clean_value):
+            clean_value = clean_value.replace(' ', '').replace(',', '.')
+        
+        return {
+            'value': clean_value,
+            'flag': flag,
+            'is_available': True
+        }
+
+    def _process_gdp_data(self, gdp_data):
         """
-        try:
-            # Crear un diccionario para mapear los años a los campos del modelo
-            year_to_field = {
-                "2019": "year_2019",
-                "2020": "year_2020",
-                "2021": "year_2021",
-                "2022": "year_2022",
-                "2023": "year_2023",
-                "2024": "year_2024",
-            }
-
-            # Usar una transacción para garantizar la atomicidad
-            with transaction.atomic():
-                for i, row in enumerate(clean_data):
-                    # Crear un diccionario con los datos para el modelo
-                    gdp_data = {
-                        "unit": "Million euro",
-                        "geo_area": countries_regions[i],
-                    }
-
-                    for j, year in enumerate(years):
-                        if year in year_to_field:
-                            field_name = year_to_field[year]
-                            value = row[j].strip()  # Eliminar espacios en blanco al principio y al final
-
-                            # Verificar si el valor está en blanco o es ":"
-                            if value == ":" or not value:
-                                gdp_data[field_name] = None  # Asignar None si está en blanco o es ":"
-                            else:
-                                # Asignar el valor como cadena (sin convertir a float)
-                                gdp_data[field_name] = value
-
-                    # Crear y guardar el objeto en la base de datos
-                    GDPTableData.objects.create(**gdp_data)
-
-            logger.info("Datos guardados en la base de datos correctamente.")
-        except Exception as e:
-            logger.error(f"Error al guardar los datos en la base de datos: {e}", exc_info=True)
+        Process GDP string list into dictionary list
+        Args:
+            gdp_data (list): List of strings in format '[CODE] Description'
+        Returns:
+            list: List of dictionaries in format [{'CODE': 'Description'}, ...]
+        """
+        gdp_data_dicc_list = []
+        
+        for item in gdp_data:
+            # Extract code between brackets and description after
+            code_start = item.find('[')
+            code_end = item.find(']')
+            
+            if code_start != -1 and code_end != -1:
+                code = item[code_start+1:code_end]
+                description = item[code_end+2:].strip()
+                gdp_data_dicc_list.append({code: description})
+        
+        return gdp_data_dicc_list
             
     def capture_screenshot(self, filename):
-        """Captura una captura de pantalla de la página actual con fecha y hora."""
+        """
+        Capture screenshot of current page with timestamp
+        Args:
+            filename (str): Base filename for screenshot
+        """
         if not self.driver:
-            logger.error("No se puede capturar la pantalla: el driver no está inicializado.")
-            return
-            
+            logger.error("Cannot capture screenshot: driver not initialized.")
+            return            
         try:
-            # Limitar el número de capturas de pantalla
+            # Limit number of stored screenshots
             max_screenshots = 10
             screenshots = sorted(
                 [f for f in os.listdir(self.screenshot_dir) if f.endswith(".png")],
-                key=lambda x: os.path.getctime(os.path.join(self.screenshot_dir, x))
-            )
+                key=lambda x: os.path.getctime(os.path.join(self.screenshot_dir, x)))
             if len(screenshots) >= max_screenshots:
                 oldest_screenshot = screenshots[0]
                 os.remove(os.path.join(self.screenshot_dir, oldest_screenshot))
-                logger.info(f"Se eliminó la captura más antigua: {oldest_screenshot}")
-
-            # Agregar fecha y hora al nombre del archivo
+                logger.info(f"Removed oldest screenshot: {oldest_screenshot}")
+            # Add timestamp to filename
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename_with_timestamp = f"{filename}_{timestamp}.png"
             filepath = os.path.join(self.screenshot_dir, filename_with_timestamp)
             self.driver.save_screenshot(filepath)
-            logger.info(f"Captura de pantalla guardada como: {filepath}")
+            logger.info(f"Screenshot saved as: {filepath}")
         except Exception as e:
-            logger.error(f"Error al capturar la pantalla: {e}")
+            logger.error(f"Error capturing screenshot: {e}")
