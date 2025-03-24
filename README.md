@@ -174,10 +174,6 @@ Este proyecto está bajo licencia [GPLv3](https://www.gnu.org/licenses/gpl-3.0.h
 
 ---
 
-# Web Scraping Project - Eurostat GDP Data
-
-Este proyecto consiste en extraer datos de GDP (Producto Interior Bruto) de Eurostat mediante técnicas de web scraping.
-
 ## Capturas del Proceso
 
 ### 1. Configuración Inicial del Proyecto
