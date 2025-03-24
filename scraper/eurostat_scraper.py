@@ -193,73 +193,12 @@ class EurostatScraper:
             logger.error(f"Error al esperar la carga de la tabla: {e}")
             self.capture_screenshot("wait_for_table_error")
             raise
-
-    def scroll_horizontal(self, scrollable_div):
-        """Realiza un scroll horizontal directo en un contenedor gestionado por JavaScript."""
-        try:
-            logger.info("Iniciando scroll horizontal directo en el contenedor...")
-            
-            # Verificar si el contenedor tiene scroll horizontal
-            scroll_width = self.driver.execute_script("return arguments[0].scrollWidth", scrollable_div)
-            visible_width = self.driver.execute_script("return arguments[0].clientWidth", scrollable_div)
-            logger.info(f"scrollWidth: {scroll_width}, clientWidth: {visible_width}")
-            
-            if scroll_width <= visible_width:
-                logger.warning("El contenedor no tiene scroll horizontal. No se realizará el scroll.")
-                return
-            
-            # Mover el scroll directamente al final
-            self.driver.execute_script("""
-                arguments[0].scrollLeft = arguments[0].scrollWidth;
-                arguments[0].dispatchEvent(new Event('scroll'));
-            """, scrollable_div)
-            logger.info("Scroll horizontal directo realizado correctamente (al final).")
-            
-            # Verificar la posición actual del scroll
-            current_scroll = self.driver.execute_script("return arguments[0].scrollLeft", scrollable_div)
-            logger.info(f"Posición actual del scroll después de mover al final: {current_scroll}px")
-            
-            # Opcional: Mover el scroll de vuelta al inicio
-            self.driver.execute_script("""
-                arguments[0].scrollLeft = 0;
-                arguments[0].dispatchEvent(new Event('scroll'));
-            """, scrollable_div)
-            logger.info("Scroll horizontal directo realizado correctamente (al inicio).")
-            
-            # Verificar la posición actual del scroll
-            current_scroll = self.driver.execute_script("return arguments[0].scrollLeft", scrollable_div)
-            logger.info(f"Posición actual del scroll después de mover al inicio: {current_scroll}px")
-            
-        except Exception as e:
-            logger.error(f"Error al realizar el scroll horizontal directo: {e}")
-
-
-    def extract_visible_table_data(self):
-        """Extrae los datos visibles de la tabla sin realizar scroll horizontal."""
-        try:
-            logger.info("Iniciando extracción de datos visibles de la tabla...")
-            
-            # Seleccionar las filas visibles de la tabla
-            rows = self.driver.find_elements(By.CSS_SELECTOR, ".ag-row")
-            all_data = []  # Almacenar todos los datos extraídos
-            
-            for row in rows:
-                cells = row.find_elements(By.CSS_SELECTOR, ".ag-cell")
-                row_data = [cell.text.strip() for cell in cells]
-                all_data.append(row_data)
-            
-            logger.info("Extracción de datos visibles completada.")
-            return all_data
-        except Exception as e:
-            logger.error(f"Error al extraer los datos visibles de la tabla: {e}")
-            return []
         
     def extract_table_data(self):
         """Extrae los datos de la tabla de la página con reintentos."""
         if not self.driver:
             logger.error("Driver no inicializado. No se pueden extraer datos.")
-            return None, None  # Devuelve None para encabezados y datos
-
+            return None, None, None  # Devuelve None para encabezados y datos
         try:
             logger.info("Iniciando extracción de datos de la tabla...")
             self.driver.get(self.base_url)
@@ -272,13 +211,18 @@ class EurostatScraper:
             logger.info("Haciendo scroll hasta la tabla...")
             table_element = self.driver.find_element(By.CSS_SELECTOR, "#estat-content-view-table")
             self.scroll_to_element(table_element)
+            
+
             # Esperar un momento para que se carguen los datos después del scroll vertical
-            time.sleep(2)
-            # Extraer los headers de los años visibles
+            time.sleep(5)
+            # Extrae los años visiles(2021, 2022, 2023 y 2024)        
             logger.info("Extrayendo headers de los años visibles...")
             year_headers = self.driver.find_elements(By.CSS_SELECTOR, ".ag-header-group-cell .table-header-text")
+            # Clenaing the years
             years = [header.text.strip() for header in year_headers if header.text.strip().isdigit()]
-            logger.info(f"Años visibles extraídos: {years}")
+            logger.info(f"Primeros años visibles extraídos: {years}")
+            print("TEST **First-Years**: ", years)
+            
 
             # Hacer scroll horizontal hasta la mitad para capturar el año 2019
             logger.info("Haciendo scroll horizontal hasta la mitad...")
@@ -286,44 +230,62 @@ class EurostatScraper:
             scroll_width = self.driver.execute_script("return arguments[0].scrollWidth", scrollable_div)
             self.driver.execute_script(f"arguments[0].scrollLeft = {scroll_width // 3};", scrollable_div)
             logger.info("Scroll horizontal hasta la mitad realizado correctamente.")
-
+            
+            
             # Esperar un momento para que se carguen los datos después del scroll a la mitad
             time.sleep(5)
-
-            # Extraer los headers de los años adicionales (incluyendo 2019)
+            # Extraer los TIME headers del scroll en el medio(años adicionales)
             logger.info("Extrayendo headers de los años adicionales (hasta la mitad)...")
             additional_year_headers = self.driver.find_elements(By.CSS_SELECTOR, ".ag-header-group-cell .table-header-text")
             additional_years = [header.text.strip() for header in additional_year_headers if header.text.strip().isdigit()]
-            logger.info(f"Años adicionales extraídos (hasta la mitad): {additional_years}")
+            logger.info(f"Segundos años extraídos (hasta la mitad): {additional_years}")
+            # Test:
+            print("TEST **Second-Years**: ", additional_years)
+            
 
             # Hacer scroll horizontal completo hacia la izquierda
             logger.info("Haciendo scroll horizontal completo hacia la izquierda...")
             self.driver.execute_script("arguments[0].scrollLeft = 0;", scrollable_div)
             logger.info("Scroll horizontal completo hacia la izquierda realizado correctamente.")
 
-            # Esperar un momento para que se carguen los datos después del scroll completo
-            time.sleep(2)
 
-            # Extraer los headers de los años restantes
+            # Esperar un momento para que se carguen los datos después del scroll completo
+            time.sleep(5)
+            # Extraer los headers de los años restantes               
             logger.info("Extrayendo headers de los años restantes...")
             remaining_year_headers = self.driver.find_elements(By.CSS_SELECTOR, ".ag-header-group-cell .table-header-text")
             remaining_years = [header.text.strip() for header in remaining_year_headers if header.text.strip().isdigit()]
-            logger.info(f"Años restantes extraídos: {remaining_years}")
+            logger.info(f"Terceros años extraídos: {remaining_years}")
 
+            # Final TIME headers 
             # Combinar y ordenar los años de menor a mayor
             all_years = list(set(years + additional_years + remaining_years))  # Eliminar duplicados
             all_years.sort()  # Ordenar de menor a mayor
             logger.info(f"Todos los años extraídos: {all_years}")
+            # Test:
+            print("TEST **All-Years**: ", all_years)
 
-            # Filtrar los años para eliminar aquellos inferiores a 2019
-            filtered_years = [year for year in all_years if int(year) >= 2019]
-            logger.info(f"Años filtrados (>= 2019): {filtered_years}")
+            # Extracción de las cabeceras GEO
+            # Localizar el div padre
+            parent_div = self.driver.find_element(By.CSS_SELECTOR, 'div.ag-pinned-left-cols-container')         
+            # Extraer todos los elementos span con los titles
+            title_elements = parent_div.find_elements(
+                By.CSS_SELECTOR, 
+                'span.colHeader.header-overflow.table-header-container[title]'
+            )
+            geo_titles = [element.get_attribute('title') for element in title_elements]
+            logger.info(f"Se encontraron {len(geo_titles)} titles:")
+            # Test: 
+            print("TEST **Geo-Titles**: ", geo_titles)
+        except Exception as e:
+            logger.error(f"Error al extraer datos de la tabla: {str(e)}", exc_info=True)
 
+
+            # TODO: delete GEO and TIME headers extracting
             # Extraer las cabeceras de la tabla (GEO y TIME)
             headers = self.driver.find_elements(By.CSS_SELECTOR, ".table-header-text")
             header_data = [header.text.strip() for header in headers if header.text.strip()]
             logger.info(f"Encabezados extraídos: {header_data}")
-
             # Extraer los datos de la tabla
             rows = self.driver.find_elements(By.CSS_SELECTOR, ".ag-row")
             data = []
@@ -333,48 +295,92 @@ class EurostatScraper:
                 data.append(row_data)
             logger.info(f"Se extrajeron {len(data)} filas de la tabla.")
 
-            # Combinar los encabezados (TIME, GEO y años)
-            final_headers = ["TIME", "GEO"] + filtered_years
-            logger.info(f"Encabezados finales: {final_headers}")
-            #Test
-            print("TEST**Encabezados finales: ", final_headers)
-            print("TEST**Datos: ", data)
+            # TODO: delete next line
+            filtered_years = [year for year in header_data if year.isdigit()]
+            
             return header_data, data, filtered_years # Devuelve encabezados y datos por separado
 
         except Exception as e:
             logger.error(f"Error al extraer datos de la tabla: {e}", exc_info=True)
             return None, None
         
+
+    
+
+    def create_multiindex_dataframe(self, pib_values, geo_index, time_index):
+        """
+        Crea un DataFrame multiindex a partir de listas de valores de PIB, índices GEO y TIME.
+
+        :param pib_values: Lista de listas con los valores de PIB.
+        :param geo_index: Lista de índices GEO.
+        :param time_index: Lista de índices TIME.
+        :return: DataFrame multiindex con GEO y TIME como índices.
+        """
+        # Verificar que las longitudes sean consistentes
+        if len(pib_values) != len(geo_index):
+            raise ValueError(f"La longitud de pib_values ({len(pib_values)}) no coincide con la longitud de geo_index ({len(geo_index)}).")
+
+        for i, row in enumerate(pib_values):
+            if len(row) != len(time_index):
+                raise ValueError(f"La fila {i} de pib_values tiene {len(row)} elementos, pero se esperaban {len(time_index)} (según time_index).")
+
+        # Crear un MultiIndex para las filas (GEO y TIME)
+        multiindex = pd.MultiIndex.from_product(
+            [geo_index, time_index], names=["GEO", "TIME"]
+        )
+
+        # Aplanar la lista de listas de valores de PIB
+        flat_pib_values = [item for sublist in pib_values for item in sublist]
+
+        # Crear el DataFrame
+        df = pd.DataFrame(flat_pib_values, index=multiindex, columns=["PIB"])
+
+        # Reorganizar el DataFrame para que TIME sea el segundo nivel de las columnas
+        df = df.unstack(level="TIME")
+
+        # Mostrar el DataFrame
+        print(df)
+
+        return df
+    
+    def clean_data(self, data):
+        cleaned_data = []
+        for row in data:
+            #Si la fila contiene valores numéricos, es una fila de datos
+            if any(cell.replace(".", "").replace(" ", "").isdigit() for cell in row):
+                cleaned_data.append(row)
+        return cleaned_data
+    
+    def get_countries_regions(self, headers):
+        return [h for h in headers if not h.isdigit() and h not in ["TIME", "GEO"]]
+
     def save_to_csv(self, headers, data, years, filename="output.csv"):
         """
         Guarda los datos en un CSV y en la base de datos.
         
         :param headers: Lista de cabeceras (TIME, GEO, años, países/regiones).
         :param data: Lista de listas con los datos de la tabla.
+        :param years: Lista de años.
         :param filename: Nombre del archivo CSV.
         """
         try:
             # Extraer años y países/regiones dinámicamente
             # years = [h for h in headers if h.isdigit()]  # Años (elementos que son números)
-            countries_regions = [h for h in headers if not h.isdigit() and h not in ["TIME", "GEO"]]  # Países/regiones
+            countries_regions =   self.get_countries_regions(headers) # Países/Regiones (elementos que no son números)
             #print("TEST**countries_regions: ", countries_regions)
             # Filtrar los datos para eliminar cabeceras y quedarnos solo con los valores
-            clean_data = []
-            for row in data:
-                #Si la fila contiene valores numéricos, es una fila de datos
-                if any(cell.replace(".", "").replace(" ", "").isdigit() for cell in row):
-                    clean_data.append(row)
+            cleaned_data = self.clean_data(data)
 
             # Depuración: Imprimir años, países/regiones y datos limpios
             print("Años:", years)
             #print("Países/Regiones:", countries_regions)
-            #print("Datos limpios:", clean_data)
-            #print("Número de filas limpias:", len(clean_data))
+            print("Datos limpios:", cleaned_data)
+            print("Número de filas limpias:", len(cleaned_data))
 
             # Verificar que countries_regions y clean_data tengan la misma longitud
-            if len(countries_regions) != len(clean_data):
+            if len(countries_regions) != len(cleaned_data):
                 logger.error(f"Error: countries_regions y clean_data no tienen la misma longitud.")
-                logger.error(f"Países/Regiones: {len(countries_regions)}, Datos limpios: {len(clean_data)}")
+                logger.error(f"Países/Regiones: {len(countries_regions)}, Datos limpios: {len(cleaned_data)}")
                 return
 
             # Crear la carpeta "data" si no existe
@@ -397,7 +403,7 @@ class EurostatScraper:
                 writer.writerow(geo_row)
 
                 # Escribir los datos (países/regiones y valores)
-                for i, row in enumerate(clean_data):
+                for i, row in enumerate(cleaned_data):
                     # Cada fila de datos comienza con el país/región y luego los valores
                     country_region = countries_regions[i]  # El país/región correspondiente
                     writer.writerow([country_region] + row)
@@ -405,7 +411,7 @@ class EurostatScraper:
             logger.info(f"Datos guardados en el archivo CSV: {filename}")
 
             # Guardar los datos en la base de datos
-            self.save_to_db(countries_regions, clean_data, years)
+            self.save_to_db(countries_regions, cleaned_data, years)
 
         except Exception as e:
             logger.error(f"Error al guardar los datos en CSV o base de datos: {e}", exc_info=True)
@@ -438,16 +444,17 @@ class EurostatScraper:
                         "geo_area": countries_regions[i],
                     }
 
-                    # Asignar los valores de los años correspondientes
-            for j, year in enumerate(years):
-                if year in year_to_field:
-                    field_name = year_to_field[year]
-                    # Verificar si el valor está en blanco o es ":"
-                    if row[j].strip() == ":" or not row[j].strip():
-                        gdp_data[field_name] = None  # Asignar None si está en blanco o es ":"
-                    else:
-                        # Convertir a float si el valor es válido
-                        gdp_data[field_name] = float(row[j].replace(" ", ""))
+                    for j, year in enumerate(years):
+                        if year in year_to_field:
+                            field_name = year_to_field[year]
+                            value = row[j].strip()  # Eliminar espacios en blanco al principio y al final
+
+                            # Verificar si el valor está en blanco o es ":"
+                            if value == ":" or not value:
+                                gdp_data[field_name] = None  # Asignar None si está en blanco o es ":"
+                            else:
+                                # Asignar el valor como cadena (sin convertir a float)
+                                gdp_data[field_name] = value
 
                     # Crear y guardar el objeto en la base de datos
                     GDPTableData.objects.create(**gdp_data)
