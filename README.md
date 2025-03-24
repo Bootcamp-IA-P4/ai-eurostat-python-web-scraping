@@ -181,7 +181,7 @@ Este proyecto consiste en extraer datos de GDP (Producto Interior Bruto) de Euro
 ## Capturas del Proceso
 
 ### 1. Configuración Inicial del Proyecto
-![Configuración Inicial](Captura_desde_2025-03-18_12-56-27.png)  
+![Configuración](docs/images/initial_conf.png)
 *Figura 1: Establecimiento de tareas iniciales y milestones en el tablero de proyecto*
 
 ### 2. Investigación de Tecnologías
