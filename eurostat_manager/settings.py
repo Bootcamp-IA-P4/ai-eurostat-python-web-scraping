@@ -11,7 +11,17 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+# settings.py
+import os
+from dotenv import load_dotenv
 
+load_dotenv()  # Load environment variables from .env file
+
+# Eurostat configuration
+EUROSTAT_CONFIG = {
+    'BASE_URL': os.getenv('EUROSTAT_BASE_URL'),
+    # You can add other Eurostat-related settings here
+}
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 

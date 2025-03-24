@@ -15,6 +15,8 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 import csv
 from django.db import transaction
+
+from eurostat_manager import settings
 from .models import GeoArea, GDPData
 
 
@@ -53,7 +55,7 @@ class EurostatScraper:
         Args:
             headless (bool): Whether to run browser in headless mode
         """
-        self.base_url = "https://ec.europa.eu/eurostat/databrowser/view/nama_10_gdp/default/table?lang=en&category=na10.nama10.nama_10_ma"
+        self.base_url = settings.EUROSTAT_CONFIG['BASE_URL']
         self.driver = None
         self.headless = headless
         self.screenshot_dir = "screenshots"
