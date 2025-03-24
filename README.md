@@ -185,27 +185,27 @@ Este proyecto consiste en extraer datos de GDP (Producto Interior Bruto) de Euro
 *Figura 1: Establecimiento de tareas iniciales y milestones en el tablero de proyecto*
 
 ### 2. Investigación de Tecnologías
-![Investigación Tecnologías](Captura_desde_2025-03-18_13-01-37.png)  
+![Investigación Tecnologías](docs/images/initial_researching.png)  
 *Figura 2: Búsqueda de tecnologías adecuadas para web scraping (BeautifulSoup, Scrapy, Selenium)*
 
 ### 3. Estructura de Ramas Git
-![Ramas Git](Captura_desde_2025-03-18_18-47-25.png)  
+![Ramas Git](docs/images/branches_structure.png)  
 *Figura 3: Estructura de ramas con `main`, `develop` y `feature/` para desarrollo*
 
 ### 4. Progreso del Desarrollo
-![Progreso](./docs/images/Captura_desde_2025-03-19_18-28-37.png)  
+![Progreso](./docs/images/spint_2.png)  
 *Figura 4: Estado actual de las tareas en el sprint (2/5 completadas)*
 
 ### 5. Estructura de Datos Eurostat
-![Estructura Eurostat](./docs/images/Captura_desde_2025-03-19_20-28-53.png)  
+![Estructura Eurostat](./docs/images/eurostat_data_structure.png)  
 *Figura 5: Jerarquía de datasets de GDP en Eurostat (ESA 2010 framework)*
 
 ### 6. Vista de Tabla de Datos
-![Tabla Datos](./docs/images/Captura_desde_2025-03-19_20-59-39.png)  
+![Tabla Datos](./docs/images/table_data.png)  
 *Figura 6: Vista preliminar de los datos GDP por país/región*
 
 ### 7. Datos Numéricos Detallados
-![Datos Numéricos](./docs/images/Captura_desde_2025-03-19_20-59-53.png)  
+![Datos Numéricos](./docs/images/detail_numeric_data.png)  
 *Figura 7: Valores específicos de GDP con flags de calidad de datos*
 
 ### 8. Tabla Completa de Resultados
