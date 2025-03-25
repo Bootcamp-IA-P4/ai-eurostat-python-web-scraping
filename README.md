@@ -13,10 +13,12 @@
 
 - **Web scraping** de tablas dinámicas con JavaScript
 - **Procesamiento ETL** (Extracción, Transformación, Carga)
-- **Visualización** mediante interfaz web Django
-- **Exportación** a múltiples formatos (Excel, CSV, JSON)
+- **Visualización** mediante interfaz web Django --> No implementado
+- **Exportación** a múltiples formatos (Excel, **CSV**, JSON)
 
-  pensado para realizar **estimaciones** sobre el desarrollo futuro de los **indicadores macroeconómicos** de la **Unión Europea**.
+pensado para realizar **estimaciones** sobre el desarrollo futuro de los **indicadores macroeconómicos** de la **Unión Europea**.
+
+----------
 
 🔍 **Tecnologías clave implementadas**:
 ```python
