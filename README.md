@@ -1,5 +1,5 @@
 
-# 🌐 Django Eurostat Web-Scraping
+# 🌐 Eurostat Web Scraping
 
 ![GPLv3 License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Python Version](https://img.shields.io/badge/Python->=3.13-blue)
@@ -9,12 +9,14 @@
 
 ## 📖 Descripción del Proyecto
 
-Py-Web-Scraping-03 es un sistema avanzado para extracción automatizada de datos estadísticos de [Eurostat](https://ec.europa.eu/eurostat), con capacidades de:
+**Eurostat Web Scraping Project** es un sistema para extracción automatizada de datos estadísticos de [Eurostat](https://ec.europa.eu/eurostat), con capacidades de:
 
 - **Web scraping** de tablas dinámicas con JavaScript
 - **Procesamiento ETL** (Extracción, Transformación, Carga)
 - **Visualización** mediante interfaz web Django
 - **Exportación** a múltiples formatos (Excel, CSV, JSON)
+
+  pensado para realizar **estimaciones** sobre el desarrollo futuro de los **indicadores macroeconómicos** de la **Unión Europea**.
 
 🔍 **Tecnologías clave implementadas**:
 ```python
