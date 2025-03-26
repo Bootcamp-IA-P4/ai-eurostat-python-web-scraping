@@ -14,7 +14,7 @@
 - **Web scraping** de tablas dinámicas con JavaScript
 - **Procesamiento ETL** (Extracción, Transformación, Carga)
 - **Visualización** mediante interfaz web Django --> No implementado
-- **Exportación** a múltiples formatos (Excel, **CSV**, JSON)
+- **Exportación** a múltiples formatos (CSV)
 
 pensado para realizar **estimaciones** sobre el desarrollo futuro de los **indicadores macroeconómicos** de la **Unión Europea**.
 
@@ -24,9 +24,9 @@ pensado para realizar **estimaciones** sobre el desarrollo futuro de los **indic
 ```python
 # Stack tecnológico completo
 tech_stack = {
-    "scraping": ["Selenium", "BeautifulSoup", "Pandas"],
+    "scraping": ["Selenium", "Pandas"],
     "backend": ["Django"],
-    "data": ["Pandas", "OpenPyXL", "NumPy"],
+    "data": ["Pandas", "NumPy"],
     "tools": ["UV", "WebDriver Manager"],
 }
 ```
@@ -48,16 +48,6 @@ options.add_argument("--disable-blink-features=AutomationControlled")
 - Limpieza automática de valores especiales (`(b)`, `(e)`, `(p)`)
 - Normalización de formatos numéricos europeos (`1.234,56` → `1234.56`)
 - Identificación automática de metadatos (EU vs Eurozone)
-
-### 🌐 **Interfaz Django**
-```bash
-# Estructura MVC implementada
-django-admin startproject eurostat_scraper
-├── core/
-│   ├── models.py       # Modelos GeoArea y GDPData
-│   ├── admin.py        # Configuración avanzada del Admin
-│   └── management/     # Comandos personalizados
-```
 
 ---
 
@@ -109,19 +99,132 @@ pytest scraper/tests/ -v
 
 ---
 
+> 💡 **Tip**: usa `uv pip compile --upgrade` para actualizar dependencias de forma segura y `uv pip sync` para replicar entornos exactos.
+
+---
+
 ## 🏗️ Estructura del Proyecto
 
 ```bash
-py-web-scraping-03/
-├── scraper/
-│   ├── eurostat_scraper.py       # Lógica principal de scraping
-│   ├── utils.py                  # Funciones de limpieza de datos
-│   └── tests/                    # Pruebas con mocks de Selenium
-├── config/
-│   ├── settings.py               # Django settings modularizados
-│   └── asgi.py                   
-├── logs/                         # Logs automatizados (RotatingFileHandler)
-└── screenshots/                  # Capturas de fallos (como vimos)
+$ tree -L 3
+
+ai-eurostat-python-web-scraping/
+.
+├── chromedriver.log
+├── data
+│   ├── gdp_data_20250323_200029.csv
+│   ├── gdp_data_20250323_202231.csv
+│   ├── gdp_data_20250323_204002.csv
+│   ├── gdp_data_20250323_204952.csv
+│   ├── gdp_data_20250323_205227.csv
+│   ├── gdp_data_20250323_205721.csv
+│   ├── gdp_data_20250323_210309.csv
+│   ├── gdp_data_20250323_211352.csv
+│   ├── gdp_data_20250323_212411.csv
+│   ├── gdp_data_latest.csv
+│   ├── table.py
+│   └── table.xls
+├── db.sqlite3
+├── docs
+│   └── images
+│       ├── branches_structure.png
+│       ├── Captura desde 2025-03-19 21-06-40.png
+│       ├── Captura desde 2025-03-20 00-05-42.png
+│       ├── Captura desde 2025-03-20 00-33-28.png
+│       ├── Captura desde 2025-03-20 02-39-27.png
+│       ├── Captura desde 2025-03-20 02-39-58.png
+│       ├── Captura desde 2025-03-20 11-16-14.png
+│       ├── Captura desde 2025-03-21 14-40-50.png
+│       ├── Captura desde 2025-03-21 22-58-39.png
+│       ├── Captura desde 2025-03-23 11-09-56.png
+│       ├── Captura desde 2025-03-23 11-25-44.png
+│       ├── Captura desde 2025-03-23 11-30-42.png
+│       ├── Captura desde 2025-03-23 12-58-21.png
+│       ├── corporative-img.webp
+│       ├── dataset.png
+│       ├── detail_numeric_data.png
+│       ├── eurostat_data_structure.png
+│       ├── initial_conf.png
+│       ├── initial_researching.png
+│       ├── spint_2.png
+│       └── table_data.png
+├── eurostat_manager
+│   ├── admin.py
+│   ├── asgi.py
+│   ├── __init__.py
+│   ├── management
+│   │   ├── commands
+│   │   ├── __init__.py
+│   │   └── __pycache__
+│   ├── migrations
+│   │   ├── 0001_initial.py
+│   │   ├── 0002_gdptabledata.py
+│   │   ├── 0003_gdptabledata_year_2015_gdptabledata_year_2016_and_more.py
+│   │   ├── 0004_remove_gdpdata_category_delete_gdptabledata_and_more.py
+│   │   ├── __init__.py
+│   │   └── __pycache__
+│   ├── __pycache__
+│   │   ├── admin.cpython-313.pyc
+│   │   ├── __init__.cpython-313.pyc
+│   │   ├── models.cpython-313.pyc
+│   │   ├── settings.cpython-313.pyc
+│   │   └── urls.cpython-313.pyc
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── inspector
+│   ├── first-gdp-value.html
+│   ├── gdp-grid-values.html
+│   ├── geo-headers.html
+│   ├── geo-hs-gdp-values.html
+│   ├── gpd-values-rows.html
+│   └── index-time-headers.html
+├── logs
+│   └── scraper.log
+├── manage.py
+├── pyproject.toml
+├── README.md
+├── requirements.txt
+├── scraper
+│   ├── admin.py
+│   ├── apps.py
+│   ├── eurostat_scraper.py
+│   ├── __init__.py
+│   ├── migrations
+│   │   ├── 0001_initial.py
+│   │   ├── 0002_remove_gdptabledata_indicator.py
+│   │   ├── 0003_remove_gdptabledata_year_2015_and_more.py
+│   │   ├── 0004_alter_gdptabledata_geo_area.py
+│   │   ├── 0005_remove_gdpdata_category_alter_gdptabledata_year_2019_and_more.py
+│   │   ├── 0006_gdpdata_geoarea_delete_gdptabledata_gdpdata_geo_area_and_more.py
+│   │   ├── __init__.py
+│   │   └── __pycache__
+│   ├── models.py
+│   ├── __pycache__
+│   │   ├── admin.cpython-313.pyc
+│   │   ├── apps.cpython-313.pyc
+│   │   ├── eurostat_scraper.cpython-313.pyc
+│   │   ├── __init__.cpython-313.pyc
+│   │   └── models.cpython-313.pyc
+│   ├── tests.py
+│   └── views.py
+├── screenshots
+│   ├── after_wait_for_table_20250325_085311.png
+│   ├── after_wait_for_table_20250325_085436.png
+│   ├── after_wait_for_table_20250325_085759.png
+│   ├── after_wait_for_table_20250325_090153.png
+│   ├── after_wait_for_table_20250325_090348.png
+│   ├── before_wait_for_table_20250325_085432.png
+│   ├── before_wait_for_table_20250325_085756.png
+│   ├── before_wait_for_table_20250325_090149.png
+│   ├── before_wait_for_table_20250325_090342.png
+│   ├── cookies_accepted_20250325_085756.png
+│   ├── cookies_accepted_20250325_090148.png
+│   ├── cookies_accepted_20250325_090342.png
+│   └── timeout_error_20250324_172036.png
+└── uv.lock
+
+18 directories, 163 files
 ```
 
 ---
@@ -168,16 +271,6 @@ python manage.py import_eurostat_data \
 
 ---
 
-## 📄 Licencia
-
-Este proyecto está bajo licencia [GPLv3](https://www.gnu.org/licenses/gpl-3.0.html). Consulte el archivo `LICENSE` para más detalles.
-
----
-
-> 💡 **Tip**: usa `uv pip compile --upgrade` para actualizar dependencias de forma segura y `uv pip sync` para replicar entornos exactos.
-
----
-
 ## Capturas del Proceso
 
 ### 1. Configuración Inicial del Proyecto
@@ -208,9 +301,7 @@ Este proyecto está bajo licencia [GPLv3](https://www.gnu.org/licenses/gpl-3.0.h
 ![Datos Numéricos](./docs/images/detail_numeric_data.png)  
 *Figura 7: Valores específicos de GDP con flags de calidad de datos*
 
-### 8. Tabla Completa de Resultados
-![Tabla Completa](./docs/images/Captura_desde_2025-03-19_21-00-04.png)  
-*Figura 8: Dataset final con valores GDP (en millones) y metadatos*
+-----
 
 ## Notas Técnicas
 
@@ -225,4 +316,12 @@ Este proyecto está bajo licencia [GPLv3](https://www.gnu.org/licenses/gpl-3.0.h
    - Componentes principales (output, expenditure, income)
    - Industrias (NACE Rev.2)
    - Áreas geográficas (EU, Euro area, países individuales)
+  
+---
+
+## 📄 Licencia
+
+Este proyecto está bajo licencia [GPLv3](https://www.gnu.org/licenses/gpl-3.0.html). Consulte el archivo `LICENSE` para más detalles.
+
+
 
